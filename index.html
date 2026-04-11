@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Animal WW2: Multiplayer & Scoreboard</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
+        canvas { display: block; background: #3d4d2d; }
+        
+        /* Overlays */
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.98)); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
+        .hidden { display: none !important; }
+
+        /* Scoreboard (TAB) */
+        #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        #scoreboard { background: #1a1a1a; border: 2px solid #555; width: 600px; padding: 20px; border-radius: 8px; }
+        .sb-header { display: grid; grid-template-columns: 2fr 1fr 1fr; border-bottom: 1px solid #444; padding-bottom: 5px; font-weight: bold; color: #ff9d00; }
+        .sb-row { display: grid; grid-template-columns: 2fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #333; font-size: 0.9em; }
+        .team-title { font-weight: bold; padding: 10px 0; margin-top: 10px; border-bottom: 2px solid; }
+        .c-caracal { color: #c19a6b; border-color: #c19a6b; }
+        .c-sheep { color: #fff; border-color: #fff; }
+
+        /* Admin Workshop */
+        #admin-panel { background: #1a1a1a; padding: 25px; border: 2px solid #ff3333; width: 450px; max-height: 80vh; overflow-y: auto; }
+        .admin-row { margin-bottom: 10px; background: #222; padding: 8px; border-radius: 4px; border-left: 3px solid #ff3333; }
+        .admin-row label { font-size: 0.7em; color: #ff3333; font-weight: bold; display: block; }
+        input, select { width: 100%; background: #111; color: white; border: 1px solid #444; padding: 5px; margin-top: 3px; }
+
+        .class-tabs { display: flex; gap: 10px; margin: 15px 0; }
+        .class-card { background: rgba(255,255,255,0.1); padding: 10px; cursor: pointer; border-radius: 4px; flex: 1; text-align: center; }
+        .class-card.active { background: #ff9d00; color: black; font-weight: bold; }
+        .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 500px; }
+        .weapon-item { background: rgba(255,255,255,0.05); padding: 10px; border: 1px solid #444; cursor: pointer; }
+        .weapon-item.selected { border-color: #ff9d00; background: rgba(255,157,0,0.1); }
+
+        #hud { position: absolute; top: 10px; left: 10px; z-index: 10; pointer-events: none; }
+        .admin-btn-ui { position: fixed; bottom: 10px; left: 10px; opacity: 0.3; background: none; color: white; border: none; cursor: pointer; z-index: 1000; }
+    </style>
+</head>
+<body>
+
+    <div id="team-menu" class="overlay">
+        <h1>ANIMAL WW2: BATTLEFIELD</h1>
+        <input type="text" id="room-code-input" placeholder="ROOM CODE" style="text-align:center; width: 200px; margin-bottom: 20px;">
+        <div class="class-tabs" style="width: 400px;">
+            <div class="class-card" onclick="pickTeam('caracal')">CARACALS</div>
+            <div class="class-card" onclick="pickTeam('sheep')">SHEEP</div>
+        </div>
+    </div>
+
+    <div id="scoreboard-overlay">
+        <div id="scoreboard">
+            <h2 style="text-align:center; margin-top:0;">BATTLE REPORT</h2>
+            <div class="team-title c-caracal">CARACAL FORCES</div>
+            <div class="sb-header"><div>PLAYER</div><div>KILLS</div><div>DEATHS</div></div>
+            <div id="list-caracal"></div>
+            
+            <div class="team-title c-sheep">SHEEP FORCES</div>
+            <div class="sb-header"><div>PLAYER</div><div>KILLS</div><div>DEATHS</div></div>
+            <div id="list-sheep"></div>
+        </div>
+    </div>
+
+    <div id="class-menu" class="overlay hidden">
+        <h2 style="color:#ff9d00">CHOOSE LOADOUT</h2>
+        <div class="class-tabs" style="width: 500px;">
+            <div id="tab-Assault" class="class-card active" onclick="setPlayerClass('Assault')">ASSAULT</div>
+            <div id="tab-Medic" class="class-card" onclick="setPlayerClass('Medic')">MEDIC</div>
+            <div id="tab-Support" class="class-card" onclick="setPlayerClass('Support')">SUPPORT</div>
+            <div id="tab-Sniper" class="class-card" onclick="setPlayerClass('Sniper')">SNIPER</div>
+        </div>
+        <div id="weapon-grid" class="weapon-grid"></div>
+        <button onclick="deploy()" style="padding:15px 80px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
+    </div>
+
+    <div id="admin-overlay" class="overlay hidden">
+        <div id="admin-panel">
+            <h3 style="color:#ff3333; margin:0 0 10px 0;">GLOBAL ADMIN WORKSHOP</h3>
+            <div class="admin-row">
+                <label>Weapon Specs</label>
+                <input id="adm-name" type="text" placeholder="Name">
+                <select id="adm-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
+                <div style="display:flex; gap:5px; margin-top:5px;">
+                    <input type="number" id="adm-dmg" placeholder="DMG" value="30">
+                    <input type="number" id="adm-mag" placeholder="MAG" value="30">
+                    <input type="number" id="adm-acc" step="0.01" placeholder="ACC" value="0.1">
+                </div>
+            </div>
+            <div class="admin-row">
+                <label>Visual Workshop (Image URL)</label>
+                <select id="look-team"><option value="caracal">Caracal</option><option value="sheep">Sheep</option></select>
+                <input type="text" id="look-url" placeholder="URL to PNG/JPG">
+                <button onclick="updateUnitLook()" style="width:100%; background:#444; color:white; border:none; margin-top:5px; padding:5px;">Sync Image</button>
+            </div>
+            <button onclick="addAdminWeapon()" style="width:100%; background:lime; color:black; font-weight:bold; padding:10px; border:none;">ADD GLOBAL WEAPON</button>
+            <button onclick="document.getElementById('admin-overlay').classList.add('hidden')" style="width:100%; background:white; margin-top:5px; border:none; padding:5px;">CLOSE</button>
+        </div>
+    </div>
+
+    <div id="hud"><div id="ammo-count" style="font-size: 1.5em; font-weight: bold;">-- / --</div></div>
+    <button class="admin-btn-ui" onclick="authAdmin()">[ADMIN]</button>
+    <canvas id="gameCanvas"></canvas>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getDatabase, ref, set, onValue, onDisconnect, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAHNCCE16nqhUPAxr5l7I__bJUBg0Z6tLk",
+        authDomain: "animalww2-4571a.firebaseapp.com",
+        projectId: "animalww2-4571a",
+        storageBucket: "animalww2-4571a.firebasestorage.app",
+        messagingSenderId: "975691381971",
+        appId: "1:975691381971:web:fbdfba8ed2f13c57d3a826",
+        databaseURL: "https://animalww2-4571a-default-rtdb.firebaseio.com"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const WORLD_WIDTH = 5000, WORLD_HEIGHT = 2000;
+    
+    let myTeam, currentClass = 'Assault', selWeaponKey = 'MP-40', gameStarted = false;
+    let playerId = "Player_" + Math.floor(Math.random() * 999), currentRoom = "GLOBAL";
+    let remotePlayers = {}, GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 150, magSize: 30, speed: 5.5, spread: 0.1 } };
+    let UNIT_IMAGES = { caracal: {}, sheep: {} };
+    let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
+
+    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+
+    function initRoom() {
+        const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+        if(code) currentRoom = code;
+        
+        const myRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
+        set(myRef, { name: playerId, team: myTeam, kills: 0, deaths: 0, x: 0, y: 0, angle: 0, class: 'Assault' });
+        onDisconnect(myRef).remove();
+
+        onValue(ref(db, `matches/${currentRoom}/players`), (snap) => {
+            remotePlayers = snap.val() || {};
+            updateScoreboard();
+            autoFillBots();
+        });
+
+        onValue(ref(db, `matches/${currentRoom}/armory`), (snap) => { if(snap.val()) GLOBAL_WEAPONS = {...GLOBAL_WEAPONS, ...snap.val()}; renderWeaponGrid(); });
+        onValue(ref(db, `matches/${currentRoom}/visuals`), (snap) => {
+            const data = snap.val();
+            if(data) Object.keys(data).forEach(t => Object.keys(data[t]).forEach(c => { const i = new Image(); i.src = data[t][c]; UNIT_IMAGES[t][c] = i; }));
+        });
+    }
+
+    function updateScoreboard() {
+        const listC = document.getElementById('list-caracal'), listS = document.getElementById('list-sheep');
+        listC.innerHTML = ""; listS.innerHTML = "";
+        Object.values(remotePlayers).forEach(p => {
+            const row = `<div class="sb-row"><div>${p.name}</div><div>${p.kills}</div><div>${p.deaths}</div></div>`;
+            if(p.team === 'caracal') listC.innerHTML += row; else listS.innerHTML += row;
+        });
+        bots.forEach(b => {
+            const row = `<div class="sb-row"><div>${b.name}</div><div>${b.kills}</div><div>${b.deaths}</div></div>`;
+            if(b.team === 'caracal') listC.innerHTML += row; else listS.innerHTML += row;
+        });
+    }
+
+    function autoFillBots() {
+        const targetPerTeam = 8;
+        const currentCaracals = Object.values(remotePlayers).filter(p => p.team === 'caracal').length + bots.filter(b => b.team === 'caracal').length;
+        const currentSheep = Object.values(remotePlayers).filter(p => p.team === 'sheep').length + bots.filter(b => b.team === 'sheep').length;
+
+        if(currentCaracals < targetPerTeam) spawnBot('caracal');
+        if(currentSheep < targetPerTeam) spawnBot('sheep');
+    }
+
+    function spawnBot(team) {
+        let b = new Entity(team, false);
+        b.name = "[BOT] " + (team === 'caracal' ? 'Cat' : 'Lamb') + "_" + Math.floor(Math.random()*99);
+        b.spawn('MP-40');
+        bots.push(b);
+    }
+
+    class Entity {
+        constructor(team, isPlayer = false) { 
+            this.team = team; this.isPlayer = isPlayer; this.isDead = true; 
+            this.kills = 0; this.deaths = 0; this.name = playerId;
+        }
+        spawn(wKey) {
+            this.x = (this.team === 'caracal') ? 200 : WORLD_WIDTH - 200;
+            this.y = 400 + Math.random() * 1200; this.health = 100;
+            this.weapon = {...GLOBAL_WEAPONS[wKey]}; this.ammo = this.weapon.magSize;
+            this.isDead = false; this.lastFired = 0; this.angle = 0;
+        }
+        update() {
+            if (this.isDead) return;
+            if (this.isPlayer) {
+                let s = this.weapon.speed;
+                if (keys['KeyW']) this.y -= s; if (keys['KeyS']) this.y += s;
+                if (keys['KeyA']) this.x -= s; if (keys['KeyD']) this.x += s;
+                this.angle = Math.atan2(mouseY - (this.y - (this.y - (canvas.height/2))), mouseX - (this.x - (this.x - (canvas.width/2)))); // Simplified camera angle
+                this.angle = Math.atan2(mouseY - (canvas.height/2), mouseX - (canvas.width/2));
+                if (isMouseDown) this.shoot();
+                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle });
+            } else {
+                this.x += (this.team === 'caracal' ? 2 : -2);
+                if (Math.random() < 0.01) this.shoot();
+            }
+        }
+        shoot() {
+            if (Date.now() - this.lastFired > this.weapon.fireRate && this.ammo > 0) {
+                const s = (Math.random()-0.5) * this.weapon.spread;
+                bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+s)*22, vy: Math.sin(this.angle+s)*22, team: this.team, damage: this.weapon.damage, owner: this });
+                this.ammo--; this.lastFired = Date.now();
+            }
+        }
+    }
+
+    function gameLoop() {
+        ctx.fillStyle = '#3d4d2d'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        const p = players.find(p => p.isPlayer);
+        let camX = 0, camY = 0;
+        if(p && !p.isDead) { camX = p.x - canvas.width/2; camY = p.y - canvas.height/2; document.getElementById('ammo-count').innerText = `${p.ammo} / ${p.weapon.magSize}`; }
+        
+        ctx.save(); ctx.translate(-camX, -camY);
+        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1000, 0, 300, WORLD_HEIGHT); ctx.fillRect(3700, 0, 300, WORLD_HEIGHT);
+
+        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, 'Assault', ent.name); } });
+        Object.keys(remotePlayers).forEach(id => { if(id !== playerId) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.class, rp.name); } });
+
+        bullets = bullets.filter(b => {
+            b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
+            [...players, ...bots].forEach(t => {
+                if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<25) {
+                    t.health -= b.damage; if(t.health <= 0) { 
+                        t.isDead = true; t.deaths++; b.owner.kills++;
+                        if(b.owner.isPlayer) update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: b.owner.kills });
+                        if(t.isPlayer) { update(ref(db, `matches/${currentRoom}/players/${playerId}`), { deaths: t.deaths }); document.getElementById('class-menu').classList.remove('hidden'); }
+                        else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 5000);
+                    }
+                    return false;
+                }
+            });
+            return b.x > 0 && b.x < WORLD_WIDTH;
+        });
+        ctx.restore(); requestAnimationFrame(gameLoop);
+    }
+
+    function drawUnit(x, y, angle, team, cls, name) {
+        ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
+        const img = UNIT_IMAGES[team][cls];
+        if(img && img.complete) ctx.drawImage(img, -30, -30, 60, 60);
+        else {
+            ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#fff';
+            ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#222'; ctx.fillRect(15, -4, 30, 8);
+        }
+        ctx.rotate(-angle); ctx.fillStyle = "white"; ctx.font = "12px Arial"; ctx.textAlign="center"; ctx.fillText(name, 0, -35);
+        ctx.restore();
+    }
+
+    // Controls
+    window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'Tab') { e.preventDefault(); document.getElementById('scoreboard-overlay').style.display = 'flex'; } });
+    window.addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; });
+    
+    // Admin & Menu Hooks
+    let players = [];
+    window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); gameStarted = true; requestAnimationFrame(gameLoop); } };
+    window.setPlayerClass = (c) => { currentClass = c; document.querySelectorAll('.class-card').forEach(x => x.classList.remove('active')); document.getElementById(`tab-${c}`).classList.add('active'); renderWeaponGrid(); };
+    function renderWeaponGrid() {
+        const grid = document.getElementById('weapon-grid'); grid.innerHTML = '';
+        Object.keys(GLOBAL_WEAPONS).filter(k => GLOBAL_WEAPONS[k].class === currentClass).forEach(key => {
+            const div = document.createElement('div'); div.className = `weapon-item ${selWeaponKey === key ? 'selected' : ''}`;
+            div.innerHTML = `<b>${GLOBAL_WEAPONS[key].name}</b>`; div.onclick = () => { selWeaponKey = key; renderWeaponGrid(); }; grid.appendChild(div);
+        });
+    }
+    window.deploy = () => { players[0].spawn(selWeaponKey); document.getElementById('class-menu').classList.add('hidden'); };
+    window.authAdmin = () => { if(prompt("Pass:") === "Lahazavr88@99") document.getElementById('admin-overlay').classList.remove('hidden'); };
+    window.updateUnitLook = () => { update(ref(db, `matches/${currentRoom}/visuals/${document.getElementById('look-team').value}`), { Assault: document.getElementById('look-url').value }); };
+    window.addAdminWeapon = () => {
+        const w = { name: document.getElementById('adm-name').value, class: document.getElementById('adm-class').value, damage: parseInt(document.getElementById('adm-dmg').value), magSize: parseInt(document.getElementById('adm-mag').value), spread: parseFloat(document.getElementById('adm-acc').value), fireRate: 200, speed: 5 };
+        update(ref(db, `matches/${currentRoom}/armory`), { [w.name]: w });
+    };
+
+    window.addEventListener('mousedown', () => isMouseDown = true); window.addEventListener('mouseup', () => isMouseDown = false);
+    window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+</script>
+</body>
+</html>
