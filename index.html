@@ -1,43 +1,43 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Animal WW2: Multiplayer & Vitality</title>
+    <title>Animal WW2: Multiplayer Classes</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
         canvas { display: block; background: #3d4d2d; }
         
-        /* Overlays */
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.98)); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
         .hidden { display: none !important; }
 
         /* Scoreboard (TAB) */
         #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; }
         #scoreboard { background: #1a1a1a; border: 2px solid #555; width: 600px; padding: 20px; border-radius: 8px; }
-        .sb-header { display: grid; grid-template-columns: 2fr 1fr 1fr; border-bottom: 1px solid #444; padding-bottom: 5px; font-weight: bold; color: #ff9d00; }
-        .sb-row { display: grid; grid-template-columns: 2fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #333; font-size: 0.9em; }
-        .team-title { font-weight: bold; padding: 10px 0; margin-top: 10px; border-bottom: 2px solid; }
-        .c-caracal { color: #c19a6b; border-color: #c19a6b; }
-        .c-sheep { color: #fff; border-color: #fff; }
+        .sb-row { display: grid; grid-template-columns: 2fr 1fr 1fr; padding: 8px 0; border-bottom: 1px solid #333; }
 
-        /* UI Elements */
-        #hud { position: absolute; bottom: 20px; right: 20px; z-index: 10; pointer-events: none; text-align: right; }
-        #ammo-display { font-size: 3em; font-weight: bold; color: #ff9d00; text-shadow: 2px 2px #000; }
-        #reload-msg { color: #ff3333; font-weight: bold; font-size: 1.2em; display: none; }
+        /* UI */
+        #hud { position: absolute; bottom: 20px; right: 20px; text-align: right; pointer-events: none; }
+        #ammo-display { font-size: 3em; font-weight: bold; color: #ff9d00; }
+        .ability-info { color: #2ecc71; font-weight: bold; margin-bottom: 5px; }
 
-        .class-tabs { display: flex; gap: 10px; margin: 15px 0; }
-        .class-card { background: rgba(255,255,255,0.1); padding: 10px; cursor: pointer; border-radius: 4px; flex: 1; text-align: center; }
-        .class-card.active { background: #ff9d00; color: black; font-weight: bold; }
-        .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 500px; }
-        .weapon-item { background: rgba(255,255,255,0.05); padding: 10px; border: 1px solid #444; cursor: pointer; }
+        /* Class Selection */
+        .class-tabs { display: flex; gap: 10px; margin: 15px 0; width: 600px; }
+        .class-card { background: rgba(255,255,255,0.1); padding: 15px; cursor: pointer; border-radius: 4px; flex: 1; text-align: center; border: 1px solid transparent; }
+        .class-card:hover { background: rgba(255,255,255,0.2); }
+        .class-card.active { background: #ff9d00; color: black; font-weight: bold; border-color: white; }
+        .class-desc { font-size: 0.7em; margin-top: 5px; opacity: 0.8; }
+
+        .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 600px; }
+        .weapon-item { background: rgba(255,255,255,0.05); padding: 12px; border: 1px solid #444; cursor: pointer; }
         .weapon-item.selected { border-color: #ff9d00; background: rgba(255,157,0,0.1); }
+        
         .admin-btn-ui { position: fixed; bottom: 10px; left: 10px; opacity: 0.3; background: none; color: white; border: none; cursor: pointer; z-index: 1000; }
     </style>
 </head>
 <body>
 
     <div id="team-menu" class="overlay">
-        <h1>ANIMAL WW2: ONLINE</h1>
-        <input type="text" id="room-code-input" placeholder="ROOM CODE" style="text-align:center; width: 200px; margin-bottom: 20px; background:#000; color:#fff; border:1px solid #555; padding:10px;">
+        <h1 style="letter-spacing: 5px;">ANIMAL WW2 ONLINE</h1>
+        <input type="text" id="room-code-input" placeholder="ROOM CODE" style="text-align:center; width: 200px; margin-bottom: 20px; padding:10px; background:#000; color:white; border:1px solid #555;">
         <div class="class-tabs" style="width: 400px;">
             <div class="class-card" onclick="pickTeam('caracal')">CARACALS</div>
             <div class="class-card" onclick="pickTeam('sheep')">SHEEP</div>
@@ -46,24 +46,38 @@
 
     <div id="scoreboard-overlay">
         <div id="scoreboard">
-            <h2 style="text-align:center; margin-top:0;">BATTLE REPORT</h2>
-            <div class="team-title c-caracal">CARACALS</div>
+            <h2 style="text-align:center; margin-top:0;">BATTLEFIELD STATS</h2>
+            <div style="color:#c19a6b; font-weight:bold; border-bottom: 2px solid #c19a6b; margin-top:10px;">CARACALS</div>
             <div id="list-caracal"></div>
-            <div class="team-title c-sheep">SHEEP</div>
+            <div style="color:#fff; font-weight:bold; border-bottom: 2px solid #fff; margin-top:10px;">SHEEP</div>
             <div id="list-sheep"></div>
         </div>
     </div>
 
     <div id="class-menu" class="overlay hidden">
-        <h2 style="color:#ff9d00">CHOOSE YOUR WEAPON</h2>
+        <h2 style="color:#ff9d00; margin-bottom:5px;">SELECT CLASS</h2>
+        <div class="class-tabs">
+            <div id="tab-Assault" class="class-card active" onclick="setPlayerClass('Assault')">
+                ASSAULT<div class="class-desc">Speed & Firepower</div>
+            </div>
+            <div id="tab-Medic" class="class-card" onclick="setPlayerClass('Medic')">
+                MEDIC<div class="class-desc">Self-Healing</div>
+            </div>
+            <div id="tab-Support" class="class-card" onclick="setPlayerClass('Support')">
+                SUPPORT<div class="class-desc">Heavy Ammo</div>
+            </div>
+            <div id="tab-Sniper" class="class-card" onclick="setPlayerClass('Sniper')">
+                SNIPER<div class="class-desc">Precision Marksman</div>
+            </div>
+        </div>
         <div id="weapon-grid" class="weapon-grid"></div>
-        <button onclick="deploy()" style="padding:15px 80px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY TO FRONT</button>
+        <button onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px; font-size: 1.2em;">DEPLOY</button>
     </div>
 
     <div id="hud">
-        <div id="reload-msg">RELOADING...</div>
+        <div id="ability-tag" class="ability-info">ABILITY ACTIVE</div>
+        <div id="reload-msg" style="color:#ff3333; font-weight:bold; display:none;">RELOADING...</div>
         <div id="ammo-display">-- / --</div>
-        <div style="font-size: 0.8em;">PRESS 'R' TO RELOAD</div>
     </div>
 
     <button class="admin-btn-ui" onclick="authAdmin()">[ADMIN]</button>
@@ -90,32 +104,39 @@
     const ctx = canvas.getContext('2d');
     const WORLD_WIDTH = 5000, WORLD_HEIGHT = 2000;
     
-    let myTeam, selWeaponKey = 'MP-40', gameStarted = false;
+    let myTeam, currentClass = 'Assault', selWeaponKey = 'MP-40', gameStarted = false;
     let playerId = "P_" + Math.floor(Math.random() * 999), currentRoom = "GLOBAL";
-    let remotePlayers = {}, GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', damage: 20, fireRate: 150, magSize: 32, reloadTime: 2000, speed: 5.5, spread: 0.1 } };
+    let remotePlayers = {};
+    
+    const BASE_WEAPONS = {
+        'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 140, magSize: 32, reloadTime: 1800, speed: 6, spread: 0.12 },
+        'StG-44': { name: 'StG-44', class: 'Assault', damage: 25, fireRate: 200, magSize: 30, reloadTime: 2200, speed: 5.5, spread: 0.08 },
+        'M1-Carbine': { name: 'M1 Carbine', class: 'Medic', damage: 30, fireRate: 300, magSize: 15, reloadTime: 1500, speed: 5.8, spread: 0.05 },
+        'Lewis-Gun': { name: 'Lewis Gun', class: 'Support', damage: 22, fireRate: 180, magSize: 97, reloadTime: 4000, speed: 4, spread: 0.18 },
+        'Kar98k': { name: 'Kar98k', class: 'Sniper', damage: 95, fireRate: 1200, magSize: 5, reloadTime: 3000, speed: 4.5, spread: 0 }
+    };
+
+    let GLOBAL_WEAPONS = {...BASE_WEAPONS};
+    let UNIT_IMAGES = { caracal: {}, sheep: {} };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
     function initRoom() {
-        const code = document.getElementById('room-code-input').value.trim().toUpperCase() || "GLOBAL";
-        currentRoom = code;
+        currentRoom = document.getElementById('room-code-input').value.toUpperCase() || "GLOBAL";
         const myRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
-        set(myRef, { name: playerId, team: myTeam, kills: 0, deaths: 0, x: 0, y: 0, angle: 0, hp: 100 });
+        set(myRef, { name: playerId, team: myTeam, kills: 0, deaths: 0, x: 0, y: 0, angle: 0, hp: 100, class: 'Assault' });
         onDisconnect(myRef).remove();
 
-        onValue(ref(db, `matches/${currentRoom}/players`), (snap) => {
-            remotePlayers = snap.val() || {};
-            updateScoreboard();
-        });
-        onValue(ref(db, `matches/${currentRoom}/armory`), (snap) => { if(snap.val()) GLOBAL_WEAPONS = {...GLOBAL_WEAPONS, ...snap.val()}; renderWeaponGrid(); });
+        onValue(ref(db, `matches/${currentRoom}/players`), (snap) => { remotePlayers = snap.val() || {}; updateScoreboard(); });
+        onValue(ref(db, `matches/${currentRoom}/armory`), (snap) => { if(snap.val()) GLOBAL_WEAPONS = {...BASE_WEAPONS, ...snap.val()}; renderWeaponGrid(); });
     }
 
     function updateScoreboard() {
         const listC = document.getElementById('list-caracal'), listS = document.getElementById('list-sheep');
         listC.innerHTML = ""; listS.innerHTML = "";
         [...Object.values(remotePlayers), ...bots].forEach(p => {
-            const row = `<div class="sb-row"><div>${p.name || 'Bot'}</div><div>${p.kills || 0}</div><div>${p.deaths || 0}</div></div>`;
+            const row = `<div class="sb-row"><div>${p.name || 'Bot'} (${p.class || 'Assault'})</div><div>${p.kills || 0}</div><div>${p.deaths || 0}</div></div>`;
             if(p.team === 'caracal') listC.innerHTML += row; else listS.innerHTML += row;
         });
     }
@@ -124,12 +145,13 @@
         constructor(team, isPlayer = false) { 
             this.team = team; this.isPlayer = isPlayer; this.isDead = true; 
             this.kills = 0; this.deaths = 0; this.name = isPlayer ? playerId : "[BOT] Unit";
-            this.isReloading = false;
+            this.isReloading = false; this.class = 'Assault';
         }
         spawn(wKey) {
             this.x = (this.team === 'caracal') ? 200 : WORLD_WIDTH - 200;
             this.y = 400 + Math.random() * 1200; this.health = 100;
             this.weapon = {...GLOBAL_WEAPONS[wKey]}; this.ammo = this.weapon.magSize;
+            this.class = this.weapon.class;
             this.isDead = false; this.lastFired = 0; this.isReloading = false;
         }
         reload() {
@@ -137,23 +159,27 @@
             this.isReloading = true;
             if(this.isPlayer) document.getElementById('reload-msg').style.display = 'block';
             setTimeout(() => {
-                this.ammo = this.weapon.magSize;
-                this.isReloading = false;
+                this.ammo = this.weapon.magSize; this.isReloading = false;
                 if(this.isPlayer) document.getElementById('reload-msg').style.display = 'none';
-            }, this.weapon.reloadTime || 2000);
+            }, this.weapon.reloadTime);
         }
         update() {
             if (this.isDead) return;
+            
+            // Class Abilities
+            if(this.class === 'Medic' && this.health < 100) this.health += 0.05; // Passive regen
+
             if (this.isPlayer) {
                 let s = this.weapon.speed;
                 if (keys['KeyW']) this.y -= s; if (keys['KeyS']) this.y += s;
                 if (keys['KeyA']) this.x -= s; if (keys['KeyD']) this.x += s;
                 if (keys['KeyR']) this.reload();
+                
                 this.angle = Math.atan2(mouseY - (canvas.height/2), mouseX - (canvas.width/2));
                 if (isMouseDown) this.shoot();
-                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.health });
+                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: Math.round(this.health), class: this.class });
             } else {
-                this.x += (this.team === 'caracal' ? 1.5 : -1.5);
+                this.x += (this.team === 'caracal' ? 1.8 : -1.8);
                 if (this.ammo <= 0) this.reload();
                 if (Math.random() < 0.01) this.shoot();
             }
@@ -161,12 +187,12 @@
         shoot() {
             if (!this.isReloading && Date.now() - this.lastFired > this.weapon.fireRate) {
                 if (this.ammo > 0) {
-                    const s = (Math.random()-0.5) * this.weapon.spread;
-                    bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+s)*22, vy: Math.sin(this.angle+s)*22, team: this.team, damage: this.weapon.damage, owner: this });
+                    let spread = this.weapon.spread;
+                    if(this.class === 'Sniper') spread = 0; // Perfect accuracy
+                    const s = (Math.random()-0.5) * spread;
+                    bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+s)*24, vy: Math.sin(this.angle+s)*24, team: this.team, damage: this.weapon.damage, owner: this });
                     this.ammo--; this.lastFired = Date.now();
-                } else {
-                    this.reload();
-                }
+                } else { this.reload(); }
             }
         }
     }
@@ -178,14 +204,15 @@
         if(p && !p.isDead) { 
             camX = p.x - canvas.width/2; camY = p.y - canvas.height/2; 
             document.getElementById('ammo-display').innerText = `${p.ammo} / ${p.weapon.magSize}`;
+            document.getElementById('ability-tag').innerText = p.class.toUpperCase() + " ABILITY ACTIVE";
         }
         
         ctx.save(); ctx.translate(-camX, -camY);
-        // Trenches
-        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1200, 0, 300, WORLD_HEIGHT); ctx.fillRect(3500, 0, 300, WORLD_HEIGHT);
+        // Battlefield
+        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 300, WORLD_HEIGHT); ctx.fillRect(3200, 0, 300, WORLD_HEIGHT);
 
-        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.health); } });
-        Object.keys(remotePlayers).forEach(id => { if(id !== playerId) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp); } });
+        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.health, ent.class); } });
+        Object.keys(remotePlayers).forEach(id => { if(id !== playerId) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.class); } });
 
         bullets = bullets.filter(b => {
             b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
@@ -195,7 +222,7 @@
                     t.health -= b.damage; hit = true;
                     if(t.health <= 0) { 
                         t.isDead = true; t.deaths++; b.owner.kills++;
-                        if(t.isPlayer) { update(ref(db, `matches/${currentRoom}/players/${playerId}`), { deaths: t.deaths }); document.getElementById('class-menu').classList.remove('hidden'); }
+                        if(t.isPlayer) document.getElementById('class-menu').classList.remove('hidden');
                         else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 5000);
                     }
                 }
@@ -205,48 +232,53 @@
         ctx.restore(); requestAnimationFrame(gameLoop);
     }
 
-    function drawUnit(x, y, angle, team, name, hp) {
+    function drawUnit(x, y, angle, team, name, hp, cls) {
         ctx.save(); ctx.translate(x, y);
-        // Health Bar
-        ctx.fillStyle = 'black'; ctx.fillRect(-25, -45, 50, 6);
-        ctx.fillStyle = hp > 30 ? '#2ecc71' : '#e74c3c';
-        ctx.fillRect(-25, -45, (hp/100)*50, 6);
+        // Health bar
+        ctx.fillStyle = 'black'; ctx.fillRect(-25, -45, 50, 5);
+        ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#fff';
+        ctx.fillRect(-25, -45, (hp/100)*50, 5);
         
         ctx.rotate(angle);
-        ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#fff';
-        ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#222'; ctx.fillRect(15, -4, 30, 8); // Gun
-        
-        ctx.rotate(-angle); ctx.fillStyle = "white"; ctx.font = "bold 12px Arial"; ctx.textAlign="center"; ctx.fillText(name, 0, -50);
+        const img = UNIT_IMAGES[team][cls];
+        if(img && img.complete) ctx.drawImage(img, -30, -30, 60, 60);
+        else {
+            ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#fff';
+            ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#222'; ctx.fillRect(15, -4, 30, 8);
+        }
+        ctx.rotate(-angle); ctx.fillStyle = "white"; ctx.font = "11px Arial"; ctx.textAlign="center"; ctx.fillText(name, 0, -52);
         ctx.restore();
     }
 
-    // Input
-    window.addEventListener('keydown', e => { 
-        keys[e.code] = true; 
-        if(e.code === 'Tab') { e.preventDefault(); document.getElementById('scoreboard-overlay').style.display = 'flex'; }
-    });
-    window.addEventListener('keyup', e => { 
-        keys[e.code] = false; 
-        if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; 
-    });
-    
-    let players = [];
-    window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); for(let i=0; i<6; i++) { let b=new Entity(i<3?'caracal':'sheep'); b.spawn('MP-40'); bots.push(b); } gameStarted = true; requestAnimationFrame(gameLoop); } };
+    // Input & Menus
+    window.setPlayerClass = (c) => { 
+        currentClass = c; 
+        document.querySelectorAll('.class-card').forEach(x => x.classList.remove('active'));
+        document.getElementById(`tab-${c}`).classList.add('active');
+        renderWeaponGrid();
+    };
+
     window.renderWeaponGrid = () => {
         const grid = document.getElementById('weapon-grid'); grid.innerHTML = '';
-        Object.keys(GLOBAL_WEAPONS).forEach(key => {
+        Object.keys(GLOBAL_WEAPONS).filter(k => GLOBAL_WEAPONS[k].class === currentClass).forEach(key => {
             const div = document.createElement('div'); div.className = `weapon-item ${selWeaponKey === key ? 'selected' : ''}`;
-            div.innerHTML = `<b>${GLOBAL_WEAPONS[key].name}</b><br><small>Mag: ${GLOBAL_WEAPONS[key].magSize}</small>`;
+            div.innerHTML = `<b>${GLOBAL_WEAPONS[key].name}</b><br><small>Damage: ${GLOBAL_WEAPONS[key].damage}</small>`;
             div.onclick = () => { selWeaponKey = key; renderWeaponGrid(); }; grid.appendChild(div);
         });
     };
+
+    window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'Tab') { e.preventDefault(); document.getElementById('scoreboard-overlay').style.display = 'flex'; } });
+    window.addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; });
+    
+    let players = [];
+    window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); for(let i=0; i<6; i++) { let b=new Entity(i<3?'caracal':'sheep'); b.spawn('MP-40'); bots.push(b); } gameStarted = true; requestAnimationFrame(gameLoop); } };
     window.deploy = () => { players[0].spawn(selWeaponKey); document.getElementById('class-menu').classList.add('hidden'); };
     window.authAdmin = () => { if(prompt("Pass:") === "Lahazavr88@99") { 
-        const name = prompt("Weapon Name:");
+        const name = prompt("Gun Name:");
+        const cls = prompt("Class (Assault/Medic/Support/Sniper):");
         const dmg = parseInt(prompt("Damage:"));
-        const mag = parseInt(prompt("Mag Size:"));
-        if(name && dmg) update(ref(db, `matches/${currentRoom}/armory`), { [name]: { name, damage: dmg, magSize: mag, fireRate: 200, speed: 5, spread: 0.1, reloadTime: 2000 } });
+        update(ref(db, `matches/${currentRoom}/armory`), { [name]: { name, class: cls, damage: dmg, magSize: 30, fireRate: 200, speed: 5, spread: 0.1, reloadTime: 2000 } });
     }};
 
     window.addEventListener('mousedown', () => isMouseDown = true); window.addEventListener('mouseup', () => isMouseDown = false);
