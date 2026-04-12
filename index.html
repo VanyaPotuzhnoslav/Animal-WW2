@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Animal WW2: Global Persistence</title>
+    <title>Animal WW2: Persistent Front</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
         canvas { display: block; background: #3d4d2d; cursor: crosshair; }
@@ -45,6 +45,7 @@
             <button onclick="setPlayerClass('Medic')">Medic</button>
             <button onclick="setPlayerClass('Support')">Support</button>
             <button onclick="setPlayerClass('Sniper')">Sniper</button>
+            <button onclick="setPlayerClass('Tank')" style="background: #556b2f; color: white;">Tank</button>
         </div>
         <div id="weapon-grid" class="weapon-grid"></div>
         <button onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
@@ -53,16 +54,25 @@
     <div id="admin-overlay" class="overlay hidden">
         <div style="width: 90%; max-width: 800px;">
             <div class="admin-box">
-                <h3>GLOBAL WEAPON CREATOR</h3>
-                <label>Name</label><input id="adm-w-name" type="text" placeholder="Weapon Name">
+                <h3>GLOBAL CREATOR</h3>
+                <label>Name</label><input id="adm-w-name" type="text" placeholder="Name">
                 <label>Class</label>
-                <select id="adm-w-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
+                <select id="adm-w-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option><option>Tank</option></select>
                 <label>Price</label><input id="adm-w-price" type="number" value="500">
                 <label>Damage</label><input id="adm-w-dmg" type="number" value="25">
                 <label>Accuracy Spread</label><input id="adm-w-spread" type="number" step="0.01" value="0.1">
                 <label>Fire Rate (ms)</label><input id="adm-w-rate" type="number" value="200">
                 <label>Magazine Size</label><input id="adm-w-mag" type="number" value="30">
-                <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD GLOBAL WEAPON</button>
+                <label>HP Bonus (Tanks only)</label><input id="adm-w-hp" type="number" value="0">
+                <label>Speed Modifier (e.g. 0.8 or 2.0)</label><input id="adm-w-speed" type="number" step="0.1" value="1.8">
+                <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD ITEM</button>
+            </div>
+            <div class="admin-box">
+                <h3>VISUALS</h3>
+                <select id="adm-v-team"><option value="caracal">Caracal</option><option value="sheep">Sheep</option></select>
+                <select id="adm-v-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option><option>Tank</option></select>
+                <input id="adm-v-url" type="text" placeholder="Image URL">
+                <button onclick="updateAdminVisual()" style="width:100%; padding:10px; margin-top:10px; background:#444; color:white; border:none; cursor:pointer;">UPDATE IMAGE</button>
             </div>
             <button onclick="closeAdmin()" style="width:100%; padding:10px; background:white; color:black; border:none; cursor:pointer;">EXIT ADMIN</button>
         </div>
@@ -105,7 +115,8 @@
     let myFuah = 0, cameraX = 0, cameraY = 0;
     let unlockedWeapons = ['MP-40']; 
     let remotePlayers = {};
-    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 1.8, spread: 0.12 } };
+    const UNIT_IMAGES = { caracal: {}, sheep: {} };
+    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 1.8, spread: 0.12, hpBonus: 0 } };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
@@ -115,7 +126,6 @@
         let nick = document.getElementById('player-nick').value.trim();
         playerId = nick ? nick : "P_" + Math.floor(Math.random() * 999);
         
-        // 1. PATH CHANGE: Get global user stats
         const globalUserRef = ref(db, `users/${playerId}`);
         const userSnap = await get(globalUserRef);
         
@@ -127,12 +137,10 @@
             await set(globalUserRef, { fuah: 0, unlocked: ['MP-40'] });
         }
 
-        // 2. Set match-specific presence
         const matchRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
         await update(matchRef, { name: playerId, team: myTeam, x: 0, y: 0, angle: 0, hp: 100, kills: 0, isOnline: true });
         onDisconnect(matchRef).update({ isOnline: false });
         
-        // Listen for global stat changes (like earning FUAH)
         onValue(globalUserRef, snap => {
             if(snap.exists()){
                 myFuah = snap.val().fuah || 0;
@@ -146,8 +154,13 @@
             updateScoreboard(); 
         });
         
-        // Armory is global across all rooms now
         onValue(ref(db, `global_armory`), snap => { if(snap.val()) { GLOBAL_WEAPONS = {...GLOBAL_WEAPONS, ...snap.val()}; renderWeaponGrid(); } });
+
+        // Restore visual syncing
+        onValue(ref(db, `matches/${currentRoom}/visuals`), snap => {
+            const data = snap.val();
+            if(data) Object.keys(data).forEach(t => Object.keys(data[t]).forEach(c => { const i = new Image(); i.src = data[t][c]; UNIT_IMAGES[t][c] = i; }));
+        });
     }
 
     window.authAdmin = () => { if(prompt("Pass:") === "Lahazavr88@99") document.getElementById('admin-overlay').classList.remove('hidden'); };
@@ -162,26 +175,33 @@
             spread: parseFloat(document.getElementById('adm-w-spread').value), 
             magSize: parseInt(document.getElementById('adm-w-mag').value), 
             fireRate: parseInt(document.getElementById('adm-w-rate').value), 
-            speed: 1.8 
+            hpBonus: parseInt(document.getElementById('adm-w-hp').value),
+            speed: parseFloat(document.getElementById('adm-w-speed').value)
         };
         update(ref(db, `global_armory`), { [w.name]: w });
     };
 
+    window.updateAdminVisual = () => { update(ref(db, `matches/${currentRoom}/visuals/${document.getElementById('adm-v-team').value}`), { [document.getElementById('adm-v-class').value]: document.getElementById('adm-v-url').value }); };
+
     class Entity {
         constructor(team, isPlayer = false) { 
             this.team = team; this.isPlayer = isPlayer; this.isDead = true; 
-            this.name = isPlayer ? playerId : "[BOT]"; this.hp = 100; this.angle = 0; this.lastFired = 0;
+            this.name = isPlayer ? playerId : "[BOT]"; this.hp = 100; this.maxHp = 100; this.angle = 0; this.lastFired = 0;
             this.targetX = 2500; this.targetY = 1000; this.moveTimer = 0;
         }
         spawn(wKey) {
             this.x = (this.team === 'caracal') ? 100 : WORLD_WIDTH - 100;
-            this.y = 200 + Math.random() * (WORLD_HEIGHT - 400); this.hp = 100;
-            this.weapon = {...GLOBAL_WEAPONS[wKey]}; this.ammo = this.weapon.magSize;
+            this.y = 200 + Math.random() * (WORLD_HEIGHT - 400); 
+            this.weapon = {...GLOBAL_WEAPONS[wKey]}; 
+            this.maxHp = 100 + (this.weapon.hpBonus || 0);
+            this.hp = this.maxHp;
+            this.ammo = this.weapon.magSize;
+            this.class = this.weapon.class;
             this.isDead = false; this.isReloading = false;
         }
         update() {
             if (this.isDead) return;
-            let s = 1.8;
+            let s = this.weapon.speed || 1.8;
             if (this.isPlayer) {
                 if (keys['KeyW']) this.y -= s; if (keys['KeyS']) this.y += s;
                 if (keys['KeyA']) this.x -= s; if (keys['KeyD']) this.x += s;
@@ -190,7 +210,7 @@
                 if (keys['KeyR']) this.reload();
                 this.angle = Math.atan2(mouseY - canvas.height/2, mouseX - canvas.width/2);
                 if (isMouseDown) this.shoot();
-                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.hp, isOnline: true });
+                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.hp, maxHp: this.maxHp, class: this.class, isOnline: true });
             } else {
                 if (Date.now() > this.moveTimer) {
                     this.targetX = 1500 + Math.random() * 2000;
@@ -231,20 +251,18 @@
         }
         ctx.save(); ctx.translate(-cameraX, -cameraY);
         ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
-        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp); } });
-        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp); } });
+        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.maxHp, ent.class); } });
+        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp, rp.class); } });
         bullets = bullets.filter(b => {
             b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
             let hit = false;
             [...players, ...bots].forEach(t => {
-                if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<25) {
+                if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
                     t.hp -= b.damage; hit = true;
                     if(t.hp <= 0) { 
                         t.isDead = true; 
                         if(b.owner.isPlayer) { 
-                            // Update GLOBAL FUAH
                             update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
-                            // Update local match kills
                             update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId].kills || 0) + 1 }); 
                         }
                         if(t.isPlayer) {
@@ -260,14 +278,21 @@
         ctx.restore(); requestAnimationFrame(gameLoop);
     }
 
-    function drawUnit(x, y, angle, team, name, hp) {
+    function drawUnit(x, y, angle, team, name, hp, maxHp, cls) {
         ctx.save(); ctx.translate(x, y);
         ctx.fillStyle = 'black'; ctx.fillRect(-20, -35, 40, 5);
-        ctx.fillStyle = '#2ecc71'; ctx.fillRect(-20, -35, (hp/100)*40, 5);
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(-20, -35, (hp/maxHp)*40, 5);
         ctx.rotate(angle);
-        ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 18, 6);
+        const img = UNIT_IMAGES[team][cls];
+        if(img && img.complete) {
+            let size = (cls === 'Tank') ? 80 : 50;
+            ctx.drawImage(img, -size/2, -size/2, size, size);
+        } else {
+            ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, (cls==='Tank'?25:18), 0, Math.PI*2); ctx.fill(); 
+            ctx.fillStyle = '#222'; ctx.fillRect(10, -3, (cls==='Tank'?35:18), 6);
+        }
         ctx.restore();
-        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "10px Arial"; ctx.fillText(name, x, y - 40);
+        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 12px Arial"; ctx.fillText(name, x, y - 45);
     }
 
     function updateScoreboard() {
@@ -284,7 +309,7 @@
             const w = GLOBAL_WEAPONS[key];
             const isUnlocked = unlockedWeapons.includes(key);
             const div = document.createElement('div'); div.className = `weapon-item ${selWeaponKey === key ? 'selected' : ''}`;
-            div.innerHTML = `<span class="price-tag" style="color:${isUnlocked?'#2ecc71':'#ff9d00'}">${isUnlocked ? 'UNLOCKED' : w.price + ' F'}</span><b>${w.name}</b>`;
+            div.innerHTML = `<span class="price-tag" style="color:${isUnlocked?'#2ecc71':'#ff9d00'}">${isUnlocked ? 'UNLOCKED' : w.price + ' F'}</span><b>${w.name}</b><br><small>${w.hpBonus ? '+'+w.hpBonus+' HP' : ''}</small>`;
             div.onclick = () => { if(isUnlocked || myFuah >= w.price) { selWeaponKey = key; renderWeaponGrid(); } else alert("No FUAH!"); };
             grid.appendChild(div);
         });
@@ -309,7 +334,6 @@
         if(!unlockedWeapons.includes(selWeaponKey)) {
             myFuah -= w.price; 
             unlockedWeapons.push(selWeaponKey);
-            // Save UNLOCKS globally
             update(ref(db, `users/${playerId}`), { fuah: myFuah, unlocked: unlockedWeapons }); 
         }
         players[0].spawn(selWeaponKey); 
