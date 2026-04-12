@@ -35,7 +35,7 @@
             <input type="text" id="room-code" placeholder="ROOM CODE (e.g. ALPHA)" style="text-align: center;">
             <input type="text" id="player-nick" placeholder="NICKNAME" style="text-align: center;">
         </div>
-        <p style="font-size: 0.8em; color: #888; margin: 15px 0;">Use the same Nickname to keep your FUAH.</p>
+        <p style="font-size: 0.8em; color: #888; margin: 15px 0;">Data is saved per Nickname + Room.</p>
         <div style="display:flex; gap:20px;">
             <button onclick="pickTeam('caracal')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">CARACALS</button>
             <button onclick="pickTeam('sheep')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">SHEEP</button>
@@ -52,7 +52,7 @@
             <button onclick="setPlayerClass('Sniper')">Sniper</button>
         </div>
         <div id="weapon-grid" class="weapon-grid"></div>
-        <button onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
+        <button id="deploy-btn" onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
     </div>
 
     <div id="admin-overlay" class="overlay hidden">
@@ -112,7 +112,6 @@
     let myFuah = 0, cameraX = 0, cameraY = 0;
     let unlockedWeapons = ['MP-40']; 
     let remotePlayers = {};
-    const UNIT_IMAGES = { caracal: {}, sheep: {} };
     let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 1.8, spread: 0.12 } };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
@@ -121,21 +120,26 @@
     async function initRoom() {
         currentRoom = document.getElementById('room-code').value.toUpperCase() || "GLOBAL";
         let nick = document.getElementById('player-nick').value.trim();
-        playerId = nick ? nick : "P_" + Math.floor(Math.random() * 999);
+        playerId = nick ? nick : "Soldier" + Math.floor(Math.random() * 999);
         
         const myRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
         
-        // Load existing data if nickname exists
+        // PERSISTENCE FIX: Await initial data before continuing
         const snapshot = await get(myRef);
         if (snapshot.exists()) {
             const data = snapshot.val();
             myFuah = data.fuah || 0;
             unlockedWeapons = data.unlocked || ['MP-40'];
+            // Keep existing stats, just update team and online status
+            await update(myRef, { team: myTeam, isOnline: true });
         } else {
-            await set(myRef, { name: playerId, team: myTeam, kills: 0, deaths: 0, x: 0, y: 0, angle: 0, hp: 100, class: 'Assault', fuah: 0, unlocked: ['MP-40'] });
+            // New player initialization
+            myFuah = 0;
+            unlockedWeapons = ['MP-40'];
+            await set(myRef, { name: playerId, team: myTeam, kills: 0, deaths: 0, x: 0, y: 0, angle: 0, hp: 100, class: 'Assault', fuah: 0, unlocked: ['MP-40'], isOnline: true });
         }
 
-        onDisconnect(myRef).update({ isOnline: false }); // Just mark offline, don't delete to save FUAH
+        onDisconnect(myRef).update({ isOnline: false });
         
         onValue(ref(db, `matches/${currentRoom}/players`), snap => { 
             remotePlayers = snap.val() || {}; 
@@ -241,8 +245,8 @@
                     if(t.hp <= 0) { 
                         t.isDead = true; 
                         if(b.owner.isPlayer) { 
-                            myFuah += 100; 
-                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah, kills: (remotePlayers[playerId].kills || 0) + 1 }); 
+                            let currentKills = (remotePlayers[playerId].kills || 0) + 1;
+                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah + 100, kills: currentKills }); 
                         }
                         if(t.isPlayer) {
                              document.getElementById('class-menu').classList.remove('hidden');
@@ -264,12 +268,12 @@
         ctx.rotate(angle);
         ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 18, 6);
         ctx.restore();
-        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "10px Arial"; ctx.fillText(name, x, y - 40);
+        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 12px Arial"; ctx.fillText(name, x, y - 40);
     }
 
     function updateScoreboard() {
         const list = document.getElementById('sb-content');
-        let html = ""; [...Object.values(remotePlayers)].forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
+        let html = ""; [...Object.values(remotePlayers)].filter(p => p.isOnline).forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
         list.innerHTML = html;
     }
 
