@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Animal WW2: Final Frontline</title>
+    <title>Animal WW2: Tactical Front</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
         canvas { display: block; background: #3d4d2d; cursor: crosshair; }
@@ -9,12 +9,10 @@
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
         .hidden { display: none !important; }
 
-        /* UI MUST HAVE POINTER-EVENTS NONE TO ALLOW CLICKING */
         #hud { position: absolute; bottom: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 10; }
         #ammo-display { font-size: 2.5em; font-weight: bold; color: #ff9d00; }
         #fuah-display { font-size: 1.5em; color: #2ecc71; font-weight: bold; }
         
-        /* ADMIN & MENUS */
         #admin-overlay { background: rgba(10, 10, 10, 0.98); z-index: 1000; overflow-y: auto; padding: 20px; }
         .admin-box { background: #222; padding: 15px; border: 1px solid #ff3333; margin: 10px; border-radius: 5px; }
         input, select { width: 100%; background: #000; color: #fff; border: 1px solid #444; padding: 8px; margin-top: 5px; }
@@ -26,7 +24,7 @@
 
         #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 500; pointer-events: none; }
         #scoreboard { background: #1a1a1a; padding: 20px; border: 2px solid #555; pointer-events: auto; }
-        .admin-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.2; color: white; background: none; border: none; cursor: pointer; z-index: 1001; }
+        .admin-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.1; color: white; background: none; border: none; cursor: pointer; z-index: 1001; }
     </style>
 </head>
 <body>
@@ -112,7 +110,7 @@
     let myFuah = 0, cameraX = 0, cameraY = 0;
     let remotePlayers = {};
     const UNIT_IMAGES = { caracal: {}, sheep: {} };
-    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 3.2, spread: 0.12 } };
+    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 2.5, spread: 0.12 } };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
@@ -133,7 +131,7 @@
     window.authAdmin = () => { if(prompt("Pass:") === "Lahazavr88@99") document.getElementById('admin-overlay').classList.remove('hidden'); };
     window.closeAdmin = () => document.getElementById('admin-overlay').classList.add('hidden');
     window.addAdminWeapon = () => {
-        const w = { name: document.getElementById('adm-w-name').value, class: document.getElementById('adm-w-class').value, price: parseInt(document.getElementById('adm-w-price').value), damage: parseInt(document.getElementById('adm-w-dmg').value), spread: 0.1, magSize: 30, fireRate: 200, speed: 3.2 };
+        const w = { name: document.getElementById('adm-w-name').value, class: document.getElementById('adm-w-class').value, price: parseInt(document.getElementById('adm-w-price').value), damage: parseInt(document.getElementById('adm-w-dmg').value), spread: 0.1, magSize: 30, fireRate: 200, speed: 2.2 };
         update(ref(db, `matches/${currentRoom}/armory`), { [w.name]: w });
     };
     window.updateAdminVisual = () => { update(ref(db, `matches/${currentRoom}/visuals/${document.getElementById('adm-v-team').value}`), { [document.getElementById('adm-v-class').value]: document.getElementById('adm-v-url').value }); };
@@ -142,37 +140,47 @@
         constructor(team, isPlayer = false) { 
             this.team = team; this.isPlayer = isPlayer; this.isDead = true; 
             this.name = isPlayer ? playerId : "[BOT]"; this.hp = 100; this.angle = 0; this.lastFired = 0;
+            this.targetX = 2500; this.targetY = 1000; this.moveTimer = 0;
         }
         spawn(wKey) {
-            this.x = (this.team === 'caracal') ? 200 : WORLD_WIDTH - 200; // Sheep spawn on right
-            this.y = 400 + Math.random() * 1200; this.hp = 100;
+            this.x = (this.team === 'caracal') ? 100 : WORLD_WIDTH - 100;
+            this.y = 200 + Math.random() * (WORLD_HEIGHT - 400); this.hp = 100;
             this.weapon = {...GLOBAL_WEAPONS[wKey]}; this.ammo = this.weapon.magSize;
             this.isDead = false; this.isReloading = false;
         }
         update() {
             if (this.isDead) return;
-            let s = this.weapon.speed || 3;
+            let s = this.weapon.speed || 2.5;
             if (this.isPlayer) {
                 if (keys['KeyW']) this.y -= s; if (keys['KeyS']) this.y += s;
                 if (keys['KeyA']) this.x -= s; if (keys['KeyD']) this.x += s;
-                this.x = Math.max(50, Math.min(WORLD_WIDTH - 50, this.x));
-                this.y = Math.max(50, Math.min(WORLD_HEIGHT - 50, this.y));
+                this.x = Math.max(20, Math.min(WORLD_WIDTH - 20, this.x));
+                this.y = Math.max(20, Math.min(WORLD_HEIGHT - 20, this.y));
                 if (keys['KeyR']) this.reload();
                 this.angle = Math.atan2(mouseY - canvas.height/2, mouseX - canvas.width/2);
                 if (isMouseDown) this.shoot();
                 update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.hp });
             } else {
-                this.x += (this.team === 'caracal' ? 1 : -1);
+                // BOT LOGIC
+                if (Date.now() > this.moveTimer) {
+                    this.targetX = 1500 + Math.random() * 2000;
+                    this.targetY = 200 + Math.random() * (WORLD_HEIGHT - 400);
+                    this.moveTimer = Date.now() + 3000 + Math.random() * 5000;
+                }
+                let dx = this.targetX - this.x; let dy = this.targetY - this.y;
+                let dist = Math.hypot(dx, dy);
+                if(dist > 10) { this.x += (dx/dist)*s*0.6; this.y += (dy/dist)*s*0.6; }
+                
                 let targets = [...players, ...Object.values(remotePlayers)].filter(t => !t.isDead && t.team !== this.team && Math.hypot(t.x-this.x, t.y-this.y) < 600);
                 if(targets.length > 0) {
                     this.angle = Math.atan2(targets[0].y - this.y, targets[0].x - this.x);
-                    if(Math.random() < 0.03) this.shoot();
+                    if(Math.random() < 0.02) this.shoot();
                 }
                 if (this.ammo <= 0) this.reload();
             }
         }
         shoot() {
-            if (!this.isReloading && Date.now() - this.lastFired > this.weapon.fireRate) {
+            if (!this.isReloading && Date.now() - this.lastFired > (this.isPlayer ? this.weapon.fireRate : this.weapon.fireRate * 1.5)) {
                 if (this.ammo > 0) {
                     const off = (Math.random()-0.5) * (this.weapon.spread || 0.1);
                     bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+off)*20, vy: Math.sin(this.angle+off)*20, team: this.team, damage: this.weapon.damage, owner: this });
@@ -193,8 +201,8 @@
             document.getElementById('fuah-display').innerText = `FUAH: ${myFuah}`;
         }
         ctx.save(); ctx.translate(-cameraX, -cameraY);
-        // TRENCHES
-        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 200, WORLD_HEIGHT); ctx.fillRect(3300, 0, 200, WORLD_HEIGHT);
+        // TRENCH LINES
+        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
         
         [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.class); } });
         Object.keys(remotePlayers).forEach(id => { if(id !== playerId) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.class); } });
@@ -209,11 +217,11 @@
                         t.isDead = true; 
                         if(b.owner.isPlayer) { myFuah += 100; update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah }); }
                         if(t.isPlayer) document.getElementById('class-menu').classList.remove('hidden');
-                        else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 5000);
+                        else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 4000);
                     }
                 }
             });
-            return !hit && b.x > 0 && b.x < WORLD_WIDTH;
+            return !hit && b.x > 0 && b.x < WORLD_WIDTH && b.y > 0 && b.y < WORLD_HEIGHT;
         });
         ctx.restore(); requestAnimationFrame(gameLoop);
     }
@@ -225,7 +233,7 @@
         ctx.rotate(angle);
         const img = UNIT_IMAGES[team][cls];
         if(img && img.complete) ctx.drawImage(img, -25, -25, 50, 50);
-        else { ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 20, 6); }
+        else { ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 18, 6); }
         ctx.restore();
     }
 
@@ -249,12 +257,12 @@
     };
 
     let players = [];
-    window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); for(let i=0; i<6; i++) { let b=new Entity(i<3?'caracal':'sheep'); b.spawn('MP-40'); bots.push(b); } gameStarted = true; requestAnimationFrame(gameLoop); } };
+    window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); for(let i=0; i<8; i++) { let b=new Entity(i<4?'caracal':'sheep'); b.spawn('MP-40'); bots.push(b); } gameStarted = true; requestAnimationFrame(gameLoop); } };
     window.deploy = () => { const w = GLOBAL_WEAPONS[selWeaponKey]; myFuah -= w.price; update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah }); players[0].spawn(selWeaponKey); document.getElementById('class-menu').classList.add('hidden'); };
 
     window.onkeydown = (e) => { keys[e.code] = true; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'flex'; };
     window.onkeyup = (e) => { keys[e.code] = false; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; };
-    window.onmousedown = () => isMouseDown = true;
+    window.onmousedown = (e) => { if(e.target.tagName === 'CANVAS') isMouseDown = true; };
     window.onmouseup = () => isMouseDown = false;
     window.onmousemove = (e) => { mouseX = e.clientX; mouseY = e.clientY; };
 </script>
