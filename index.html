@@ -1,27 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Animal WW2: Persistent Front</title>
+    <title>Animal WW2: Global Persistence</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
         canvas { display: block; background: #3d4d2d; cursor: crosshair; }
-        
         .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
         .hidden { display: none !important; }
-
         #hud { position: absolute; bottom: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 10; }
         #ammo-display { font-size: 2.5em; font-weight: bold; color: #ff9d00; }
         #fuah-display { font-size: 1.5em; color: #2ecc71; font-weight: bold; }
-        
         #admin-overlay { background: rgba(10, 10, 10, 0.98); z-index: 1000; overflow-y: auto; padding: 20px; }
         .admin-box { background: #222; padding: 15px; border: 1px solid #ff3333; margin: 10px; border-radius: 5px; }
         input, select { width: 100%; background: #000; color: #fff; border: 1px solid #444; padding: 8px; margin-top: 5px; box-sizing: border-box; }
-        
         .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 600px; pointer-events: auto; }
         .weapon-item { background: rgba(255,255,255,0.05); padding: 12px; border: 1px solid #444; cursor: pointer; position: relative; }
         .weapon-item.selected { border-color: #ff9d00; background: rgba(255,157,0,0.2); }
         .price-tag { position: absolute; top: 5px; right: 5px; color: #2ecc71; font-size: 0.8em; }
-
         #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 500; pointer-events: none; }
         #scoreboard { background: #1a1a1a; padding: 20px; border: 2px solid #555; pointer-events: auto; }
         .admin-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.1; color: white; background: none; border: none; cursor: pointer; z-index: 1001; }
@@ -35,7 +30,7 @@
             <input type="text" id="room-code" placeholder="ROOM CODE (e.g. ALPHA)" style="text-align: center;">
             <input type="text" id="player-nick" placeholder="NICKNAME" style="text-align: center;">
         </div>
-        <p style="font-size: 0.8em; color: #888; margin: 15px 0;">Data is saved per Nickname + Room.</p>
+        <p style="font-size: 0.8em; color: #2ecc71; margin: 15px 0;">Stats are now GLOBAL for your Nickname!</p>
         <div style="display:flex; gap:20px;">
             <button onclick="pickTeam('caracal')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">CARACALS</button>
             <button onclick="pickTeam('sheep')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">SHEEP</button>
@@ -52,13 +47,13 @@
             <button onclick="setPlayerClass('Sniper')">Sniper</button>
         </div>
         <div id="weapon-grid" class="weapon-grid"></div>
-        <button id="deploy-btn" onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
+        <button onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
     </div>
 
     <div id="admin-overlay" class="overlay hidden">
         <div style="width: 90%; max-width: 800px;">
             <div class="admin-box">
-                <h3>WEAPON CREATOR</h3>
+                <h3>GLOBAL WEAPON CREATOR</h3>
                 <label>Name</label><input id="adm-w-name" type="text" placeholder="Weapon Name">
                 <label>Class</label>
                 <select id="adm-w-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
@@ -67,11 +62,9 @@
                 <label>Accuracy Spread</label><input id="adm-w-spread" type="number" step="0.01" value="0.1">
                 <label>Fire Rate (ms)</label><input id="adm-w-rate" type="number" value="200">
                 <label>Magazine Size</label><input id="adm-w-mag" type="number" value="30">
-                <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD WEAPON</button>
+                <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD GLOBAL WEAPON</button>
             </div>
-            <div class="admin-box">
-                <button onclick="closeAdmin()" style="width:100%; padding:10px; background:white; color:black; border:none; cursor:pointer;">EXIT ADMIN</button>
-            </div>
+            <button onclick="closeAdmin()" style="width:100%; padding:10px; background:white; color:black; border:none; cursor:pointer;">EXIT ADMIN</button>
         </div>
     </div>
 
@@ -120,37 +113,41 @@
     async function initRoom() {
         currentRoom = document.getElementById('room-code').value.toUpperCase() || "GLOBAL";
         let nick = document.getElementById('player-nick').value.trim();
-        playerId = nick ? nick : "Soldier" + Math.floor(Math.random() * 999);
+        playerId = nick ? nick : "P_" + Math.floor(Math.random() * 999);
         
-        const myRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
+        // 1. PATH CHANGE: Get global user stats
+        const globalUserRef = ref(db, `users/${playerId}`);
+        const userSnap = await get(globalUserRef);
         
-        // PERSISTENCE FIX: Await initial data before continuing
-        const snapshot = await get(myRef);
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            myFuah = data.fuah || 0;
-            unlockedWeapons = data.unlocked || ['MP-40'];
-            // Keep existing stats, just update team and online status
-            await update(myRef, { team: myTeam, isOnline: true });
+        if (userSnap.exists()) {
+            const userData = userSnap.val();
+            myFuah = userData.fuah || 0;
+            unlockedWeapons = userData.unlocked || ['MP-40'];
         } else {
-            // New player initialization
-            myFuah = 0;
-            unlockedWeapons = ['MP-40'];
-            await set(myRef, { name: playerId, team: myTeam, kills: 0, deaths: 0, x: 0, y: 0, angle: 0, hp: 100, class: 'Assault', fuah: 0, unlocked: ['MP-40'], isOnline: true });
+            await set(globalUserRef, { fuah: 0, unlocked: ['MP-40'] });
         }
 
-        onDisconnect(myRef).update({ isOnline: false });
+        // 2. Set match-specific presence
+        const matchRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
+        await update(matchRef, { name: playerId, team: myTeam, x: 0, y: 0, angle: 0, hp: 100, kills: 0, isOnline: true });
+        onDisconnect(matchRef).update({ isOnline: false });
         
+        // Listen for global stat changes (like earning FUAH)
+        onValue(globalUserRef, snap => {
+            if(snap.exists()){
+                myFuah = snap.val().fuah || 0;
+                unlockedWeapons = snap.val().unlocked || ['MP-40'];
+                renderWeaponGrid();
+            }
+        });
+
         onValue(ref(db, `matches/${currentRoom}/players`), snap => { 
             remotePlayers = snap.val() || {}; 
-            if(remotePlayers[playerId]) {
-                myFuah = remotePlayers[playerId].fuah || 0;
-                unlockedWeapons = remotePlayers[playerId].unlocked || ['MP-40'];
-            }
             updateScoreboard(); 
         });
         
-        onValue(ref(db, `matches/${currentRoom}/armory`), snap => { if(snap.val()) { GLOBAL_WEAPONS = {...GLOBAL_WEAPONS, ...snap.val()}; renderWeaponGrid(); } });
+        // Armory is global across all rooms now
+        onValue(ref(db, `global_armory`), snap => { if(snap.val()) { GLOBAL_WEAPONS = {...GLOBAL_WEAPONS, ...snap.val()}; renderWeaponGrid(); } });
     }
 
     window.authAdmin = () => { if(prompt("Pass:") === "Lahazavr88@99") document.getElementById('admin-overlay').classList.remove('hidden'); };
@@ -167,7 +164,7 @@
             fireRate: parseInt(document.getElementById('adm-w-rate').value), 
             speed: 1.8 
         };
-        update(ref(db, `matches/${currentRoom}/armory`), { [w.name]: w });
+        update(ref(db, `global_armory`), { [w.name]: w });
     };
 
     class Entity {
@@ -234,8 +231,8 @@
         }
         ctx.save(); ctx.translate(-cameraX, -cameraY);
         ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
-        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.class); } });
-        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.class); } });
+        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp); } });
+        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp); } });
         bullets = bullets.filter(b => {
             b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
             let hit = false;
@@ -245,8 +242,10 @@
                     if(t.hp <= 0) { 
                         t.isDead = true; 
                         if(b.owner.isPlayer) { 
-                            let currentKills = (remotePlayers[playerId].kills || 0) + 1;
-                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah + 100, kills: currentKills }); 
+                            // Update GLOBAL FUAH
+                            update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
+                            // Update local match kills
+                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId].kills || 0) + 1 }); 
                         }
                         if(t.isPlayer) {
                              document.getElementById('class-menu').classList.remove('hidden');
@@ -261,19 +260,19 @@
         ctx.restore(); requestAnimationFrame(gameLoop);
     }
 
-    function drawUnit(x, y, angle, team, name, hp, cls) {
+    function drawUnit(x, y, angle, team, name, hp) {
         ctx.save(); ctx.translate(x, y);
         ctx.fillStyle = 'black'; ctx.fillRect(-20, -35, 40, 5);
         ctx.fillStyle = '#2ecc71'; ctx.fillRect(-20, -35, (hp/100)*40, 5);
         ctx.rotate(angle);
         ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 18, 6);
         ctx.restore();
-        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "bold 12px Arial"; ctx.fillText(name, x, y - 40);
+        ctx.fillStyle = "white"; ctx.textAlign = "center"; ctx.font = "10px Arial"; ctx.fillText(name, x, y - 40);
     }
 
     function updateScoreboard() {
         const list = document.getElementById('sb-content');
-        let html = ""; [...Object.values(remotePlayers)].filter(p => p.isOnline).forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
+        let html = ""; [...Object.values(remotePlayers)].filter(p=>p.isOnline).forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
         list.innerHTML = html;
     }
 
@@ -310,7 +309,8 @@
         if(!unlockedWeapons.includes(selWeaponKey)) {
             myFuah -= w.price; 
             unlockedWeapons.push(selWeaponKey);
-            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah, unlocked: unlockedWeapons }); 
+            // Save UNLOCKS globally
+            update(ref(db, `users/${playerId}`), { fuah: myFuah, unlocked: unlockedWeapons }); 
         }
         players[0].spawn(selWeaponKey); 
         document.getElementById('class-menu').classList.add('hidden'); 
