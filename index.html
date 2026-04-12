@@ -112,9 +112,10 @@
     let myTeam, currentClass = 'Assault', selWeaponKey = 'MP-40', gameStarted = false;
     let playerId = "P_" + Math.floor(Math.random() * 999), currentRoom = "GLOBAL";
     let myFuah = 0, cameraX = 0, cameraY = 0;
+    let unlockedWeapons = ['MP-40']; // Permanent unlocks for this session
     let remotePlayers = {};
     const UNIT_IMAGES = { caracal: {}, sheep: {} };
-    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 2.5, spread: 0.12 } };
+    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 1.8, spread: 0.12 } };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
@@ -144,7 +145,7 @@
             spread: parseFloat(document.getElementById('adm-w-spread').value), 
             magSize: parseInt(document.getElementById('adm-w-mag').value), 
             fireRate: parseInt(document.getElementById('adm-w-rate').value), 
-            speed: 2.2 
+            speed: 1.8 
         };
         update(ref(db, `matches/${currentRoom}/armory`), { [w.name]: w });
     };
@@ -165,7 +166,7 @@
         }
         update() {
             if (this.isDead) return;
-            let s = this.weapon.speed || 2.5;
+            let s = this.weapon.speed || 1.8;
             if (this.isPlayer) {
                 if (keys['KeyW']) this.y -= s; if (keys['KeyS']) this.y += s;
                 if (keys['KeyA']) this.x -= s; if (keys['KeyD']) this.x += s;
@@ -196,7 +197,8 @@
             if (!this.isReloading && Date.now() - this.lastFired > (this.isPlayer ? this.weapon.fireRate : this.weapon.fireRate * 1.5)) {
                 if (this.ammo > 0) {
                     const off = (Math.random()-0.5) * (this.weapon.spread || 0.1);
-                    bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+off)*20, vy: Math.sin(this.angle+off)*20, team: this.team, damage: this.weapon.damage, owner: this });
+                    // Bullet velocity reduced to 12
+                    bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+off)*12, vy: Math.sin(this.angle+off)*12, team: this.team, damage: this.weapon.damage, owner: this });
                     this.ammo--; this.lastFired = Date.now();
                 } else this.reload();
             }
@@ -259,16 +261,32 @@
         document.getElementById('fuah-menu-display').innerText = `FUAH: ${myFuah}`;
         Object.keys(GLOBAL_WEAPONS).filter(k => GLOBAL_WEAPONS[k].class === currentClass).forEach(key => {
             const w = GLOBAL_WEAPONS[key];
+            const isUnlocked = unlockedWeapons.includes(key);
             const div = document.createElement('div'); div.className = `weapon-item ${selWeaponKey === key ? 'selected' : ''}`;
-            div.innerHTML = `<span class="price-tag">${w.price} F</span><b>${w.name}</b>`;
-            div.onclick = () => { if(myFuah >= w.price) { selWeaponKey = key; renderWeaponGrid(); } else alert("No FUAH!"); };
+            div.innerHTML = `<span class="price-tag" style="color:${isUnlocked?'#2ecc71':'#ff9d00'}">${isUnlocked ? 'UNLOCKED' : w.price + ' F'}</span><b>${w.name}</b>`;
+            div.onclick = () => { 
+                if(isUnlocked || myFuah >= w.price) { 
+                    selWeaponKey = key; 
+                    renderWeaponGrid(); 
+                } else alert("No FUAH!"); 
+            };
             grid.appendChild(div);
         });
     };
 
     let players = [];
     window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); for(let i=0; i<8; i++) { let b=new Entity(i<4?'caracal':'sheep'); b.spawn('MP-40'); bots.push(b); } gameStarted = true; requestAnimationFrame(gameLoop); } };
-    window.deploy = () => { const w = GLOBAL_WEAPONS[selWeaponKey]; myFuah -= w.price; update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah }); players[0].spawn(selWeaponKey); document.getElementById('class-menu').classList.add('hidden'); };
+    
+    window.deploy = () => { 
+        const w = GLOBAL_WEAPONS[selWeaponKey]; 
+        if(!unlockedWeapons.includes(selWeaponKey)) {
+            myFuah -= w.price; 
+            unlockedWeapons.push(selWeaponKey);
+            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah }); 
+        }
+        players[0].spawn(selWeaponKey); 
+        document.getElementById('class-menu').classList.add('hidden'); 
+    };
 
     window.onkeydown = (e) => { keys[e.code] = true; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'flex'; };
     window.onkeyup = (e) => { keys[e.code] = false; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; };
