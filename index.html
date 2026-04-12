@@ -1,53 +1,49 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Animal WW2: Frontline Economy</title>
+    <title>Animal WW2: Final Frontline</title>
     <style>
         body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
-        canvas { display: block; background: #3d4d2d; }
+        canvas { display: block; background: #3d4d2d; cursor: crosshair; }
         
-        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.98)); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
         .hidden { display: none !important; }
 
-        /* ADMIN PANEL */
-        #admin-overlay { background: rgba(10, 10, 10, 0.98); z-index: 1000; overflow-y: auto; padding: 40px 0; }
-        #admin-panel { width: 90%; max-width: 800px; background: #1a1a1a; border: 2px solid #ff3333; padding: 30px; border-radius: 10px; }
-        .admin-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
-        .admin-box { background: #222; padding: 15px; border-radius: 5px; border: 1px solid #333; }
-        label { font-size: 0.75em; color: #888; text-transform: uppercase; display: block; margin-top: 10px; }
-        input, select { width: 100%; background: #000; color: #fff; border: 1px solid #444; padding: 8px; margin-top: 5px; box-sizing: border-box; }
-        .admin-btn { background: #ff3333; color: white; border: none; padding: 12px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 15px; }
-
-        /* UI */
-        #hud { position: absolute; bottom: 20px; right: 20px; text-align: right; pointer-events: none; }
+        /* UI MUST HAVE POINTER-EVENTS NONE TO ALLOW CLICKING */
+        #hud { position: absolute; bottom: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 10; }
         #ammo-display { font-size: 2.5em; font-weight: bold; color: #ff9d00; }
         #fuah-display { font-size: 1.5em; color: #2ecc71; font-weight: bold; }
         
-        .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 600px; }
+        /* ADMIN & MENUS */
+        #admin-overlay { background: rgba(10, 10, 10, 0.98); z-index: 1000; overflow-y: auto; padding: 20px; }
+        .admin-box { background: #222; padding: 15px; border: 1px solid #ff3333; margin: 10px; border-radius: 5px; }
+        input, select { width: 100%; background: #000; color: #fff; border: 1px solid #444; padding: 8px; margin-top: 5px; }
+        
+        .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 600px; pointer-events: auto; }
         .weapon-item { background: rgba(255,255,255,0.05); padding: 12px; border: 1px solid #444; cursor: pointer; position: relative; }
-        .weapon-item.selected { border-color: #ff9d00; background: rgba(255,157,0,0.1); }
-        .price-tag { position: absolute; top: 5px; right: 5px; color: #2ecc71; font-size: 0.8em; font-weight: bold; }
+        .weapon-item.selected { border-color: #ff9d00; background: rgba(255,157,0,0.2); }
+        .price-tag { position: absolute; top: 5px; right: 5px; color: #2ecc71; font-size: 0.8em; }
 
-        #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000; }
-        #scoreboard { background: #1a1a1a; border: 2px solid #555; width: 600px; padding: 20px; }
-        .admin-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.2; color: white; background: none; border: none; cursor: pointer; }
+        #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 500; pointer-events: none; }
+        #scoreboard { background: #1a1a1a; padding: 20px; border: 2px solid #555; pointer-events: auto; }
+        .admin-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.2; color: white; background: none; border: none; cursor: pointer; z-index: 1001; }
     </style>
 </head>
 <body>
 
     <div id="team-menu" class="overlay">
-        <h1>ANIMAL WW2 ONLINE</h1>
+        <h1>ANIMAL WW2</h1>
         <input type="text" id="room-code" placeholder="ROOM CODE" style="width: 200px; text-align: center; margin-bottom: 20px;">
-        <div style="display:flex; gap:10px;">
-            <button onclick="pickTeam('caracal')" style="padding:15px 30px; cursor:pointer;">CARACALS</button>
-            <button onclick="pickTeam('sheep')" style="padding:15px 30px; cursor:pointer;">SHEEP</button>
+        <div style="display:flex; gap:20px;">
+            <button onclick="pickTeam('caracal')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">CARACALS</button>
+            <button onclick="pickTeam('sheep')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">SHEEP</button>
         </div>
     </div>
 
     <div id="class-menu" class="overlay hidden">
-        <h2 style="color:#ff9d00">ARMORY</h2>
+        <h2 style="color:#ff9d00">SELECT LOADOUT</h2>
         <div id="fuah-menu-display" style="color:#2ecc71; font-weight:bold; margin-bottom:10px;">FUAH: 0</div>
-        <div style="display:flex; gap:5px; margin-bottom:15px;">
+        <div style="margin-bottom:15px; display:flex; gap:10px;">
             <button onclick="setPlayerClass('Assault')">Assault</button>
             <button onclick="setPlayerClass('Medic')">Medic</button>
             <button onclick="setPlayerClass('Support')">Support</button>
@@ -58,34 +54,28 @@
     </div>
 
     <div id="admin-overlay" class="overlay hidden">
-        <div id="admin-panel">
-            <h2 style="text-align:center; color:#ff3333; margin:0 0 20px 0;">GLOBAL COMMAND</h2>
-            <div class="admin-section">
-                <div class="admin-box">
-                    <h3>WEAPON FACTORY</h3>
-                    <label>Name</label><input id="adm-w-name" type="text">
-                    <label>Class</label>
-                    <select id="adm-w-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
-                    <label>Price (FUAH)</label><input id="adm-w-price" type="number" value="0">
-                    <label>Damage</label><input id="adm-w-dmg" type="number" value="25">
-                    <label>Fire Rate (ms)</label><input id="adm-w-rate" type="number" value="200">
-                    <button class="admin-btn" onclick="addAdminWeapon()">SYNC WEAPON</button>
-                </div>
-                <div class="admin-box">
-                    <h3>VISUALS</h3>
-                    <select id="adm-v-team"><option value="caracal">Caracal</option><option value="sheep">Sheep</option></select>
-                    <select id="adm-v-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
-                    <label>Image URL</label><input id="adm-v-url" type="text">
-                    <button class="admin-btn" onclick="updateAdminVisual()">SYNC LOOK</button>
-                    <button class="admin-btn" style="background:#fff; color:#000;" onclick="closeAdmin()">CLOSE</button>
-                </div>
+        <div style="width: 90%; max-width: 800px;">
+            <div class="admin-box">
+                <h3>WEAPON CREATOR</h3>
+                <label>Name</label><input id="adm-w-name" type="text" placeholder="Weapon Name">
+                <label>Class</label>
+                <select id="adm-w-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
+                <label>Price</label><input id="adm-w-price" type="number" value="500">
+                <label>Damage</label><input id="adm-w-dmg" type="number" value="25">
+                <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD WEAPON</button>
+            </div>
+            <div class="admin-box">
+                <h3>VISUALS</h3>
+                <select id="adm-v-team"><option value="caracal">Caracal</option><option value="sheep">Sheep</option></select>
+                <select id="adm-v-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option></select>
+                <input id="adm-v-url" type="text" placeholder="Image URL">
+                <button onclick="updateAdminVisual()" style="width:100%; padding:10px; margin-top:10px; background:#444; color:white; border:none; cursor:pointer;">UPDATE IMAGE</button>
+                <button onclick="closeAdmin()" style="width:100%; padding:10px; margin-top:5px; background:white; color:black; border:none; cursor:pointer;">EXIT ADMIN</button>
             </div>
         </div>
     </div>
 
-    <div id="scoreboard-overlay">
-        <div id="scoreboard"><div id="sb-content"></div></div>
-    </div>
+    <div id="scoreboard-overlay"><div id="scoreboard"><h3>BATTLEFIELD STATS</h3><div id="sb-content"></div></div></div>
 
     <div id="hud">
         <div id="fuah-display">FUAH: 0</div>
@@ -119,12 +109,11 @@
     
     let myTeam, currentClass = 'Assault', selWeaponKey = 'MP-40', gameStarted = false;
     let playerId = "P_" + Math.floor(Math.random() * 999), currentRoom = "GLOBAL";
-    let myFuah = 0;
+    let myFuah = 0, cameraX = 0, cameraY = 0;
     let remotePlayers = {};
     const UNIT_IMAGES = { caracal: {}, sheep: {} };
-    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 3.5, spread: 0.12 } };
+    let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 3.2, spread: 0.12 } };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
-    let cameraX = 0, cameraY = 0;
 
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
@@ -144,20 +133,18 @@
     window.authAdmin = () => { if(prompt("Pass:") === "Lahazavr88@99") document.getElementById('admin-overlay').classList.remove('hidden'); };
     window.closeAdmin = () => document.getElementById('admin-overlay').classList.add('hidden');
     window.addAdminWeapon = () => {
-        const w = { name: document.getElementById('adm-w-name').value, class: document.getElementById('adm-w-class').value, price: parseInt(document.getElementById('adm-w-price').value), damage: parseInt(document.getElementById('adm-w-dmg').value), spread: 0.1, magSize: 30, fireRate: parseInt(document.getElementById('adm-w-rate').value), speed: 3.2 };
+        const w = { name: document.getElementById('adm-w-name').value, class: document.getElementById('adm-w-class').value, price: parseInt(document.getElementById('adm-w-price').value), damage: parseInt(document.getElementById('adm-w-dmg').value), spread: 0.1, magSize: 30, fireRate: 200, speed: 3.2 };
         update(ref(db, `matches/${currentRoom}/armory`), { [w.name]: w });
     };
-    window.updateAdminVisual = () => {
-        update(ref(db, `matches/${currentRoom}/visuals/${document.getElementById('adm-v-team').value}`), { [document.getElementById('adm-v-class').value]: document.getElementById('adm-v-url').value });
-    };
+    window.updateAdminVisual = () => { update(ref(db, `matches/${currentRoom}/visuals/${document.getElementById('adm-v-team').value}`), { [document.getElementById('adm-v-class').value]: document.getElementById('adm-v-url').value }); };
 
     class Entity {
         constructor(team, isPlayer = false) { 
             this.team = team; this.isPlayer = isPlayer; this.isDead = true; 
-            this.name = isPlayer ? playerId : "[BOT]"; this.hp = 100; this.angle = 0;
+            this.name = isPlayer ? playerId : "[BOT]"; this.hp = 100; this.angle = 0; this.lastFired = 0;
         }
         spawn(wKey) {
-            this.x = (this.team === 'caracal') ? 200 : WORLD_WIDTH - 200;
+            this.x = (this.team === 'caracal') ? 200 : WORLD_WIDTH - 200; // Sheep spawn on right
             this.y = 400 + Math.random() * 1200; this.hp = 100;
             this.weapon = {...GLOBAL_WEAPONS[wKey]}; this.ammo = this.weapon.magSize;
             this.isDead = false; this.isReloading = false;
@@ -168,16 +155,15 @@
             if (this.isPlayer) {
                 if (keys['KeyW']) this.y -= s; if (keys['KeyS']) this.y += s;
                 if (keys['KeyA']) this.x -= s; if (keys['KeyD']) this.x += s;
-                // WORLD LIMITS
-                this.x = Math.max(0, Math.min(WORLD_WIDTH, this.x));
-                this.y = Math.max(0, Math.min(WORLD_HEIGHT, this.y));
+                this.x = Math.max(50, Math.min(WORLD_WIDTH - 50, this.x));
+                this.y = Math.max(50, Math.min(WORLD_HEIGHT - 50, this.y));
                 if (keys['KeyR']) this.reload();
                 this.angle = Math.atan2(mouseY - canvas.height/2, mouseX - canvas.width/2);
                 if (isMouseDown) this.shoot();
                 update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.hp });
             } else {
-                this.x += (this.team === 'caracal' ? s*0.5 : -s*0.5);
-                let targets = [...players, ...Object.values(remotePlayers)].filter(t => !t.isDead && t.team !== this.team && Math.hypot(t.x-this.x, t.y-this.y) < 500);
+                this.x += (this.team === 'caracal' ? 1 : -1);
+                let targets = [...players, ...Object.values(remotePlayers)].filter(t => !t.isDead && t.team !== this.team && Math.hypot(t.x-this.x, t.y-this.y) < 600);
                 if(targets.length > 0) {
                     this.angle = Math.atan2(targets[0].y - this.y, targets[0].x - this.x);
                     if(Math.random() < 0.03) this.shoot();
@@ -188,9 +174,8 @@
         shoot() {
             if (!this.isReloading && Date.now() - this.lastFired > this.weapon.fireRate) {
                 if (this.ammo > 0) {
-                    const spread = this.weapon.spread || 0.1;
-                    const off = (Math.random()-0.5) * spread;
-                    bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+off)*18, vy: Math.sin(this.angle+off)*18, team: this.team, damage: this.weapon.damage, owner: this });
+                    const off = (Math.random()-0.5) * (this.weapon.spread || 0.1);
+                    bullets.push({ x: this.x, y: this.y, vx: Math.cos(this.angle+off)*20, vy: Math.sin(this.angle+off)*20, team: this.team, damage: this.weapon.damage, owner: this });
                     this.ammo--; this.lastFired = Date.now();
                 } else this.reload();
             }
@@ -202,13 +187,15 @@
         ctx.fillStyle = '#3d4d2d'; ctx.fillRect(0, 0, canvas.width, canvas.height);
         const p = players[0];
         if(p && !p.isDead) { 
-            // CAMERA LIMITS
             cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, p.x - canvas.width/2));
             cameraY = Math.max(0, Math.min(WORLD_HEIGHT - canvas.height, p.y - canvas.height/2));
             document.getElementById('ammo-display').innerText = `${p.ammo} / ${p.weapon.magSize}`;
             document.getElementById('fuah-display').innerText = `FUAH: ${myFuah}`;
         }
         ctx.save(); ctx.translate(-cameraX, -cameraY);
+        // TRENCHES
+        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 200, WORLD_HEIGHT); ctx.fillRect(3300, 0, 200, WORLD_HEIGHT);
+        
         [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.class); } });
         Object.keys(remotePlayers).forEach(id => { if(id !== playerId) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.class); } });
         
@@ -220,7 +207,7 @@
                     t.hp -= b.damage; hit = true;
                     if(t.hp <= 0) { 
                         t.isDead = true; 
-                        if(b.owner.isPlayer) { myFuah += 100; update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah, kills: (remotePlayers[playerId].kills || 0) + 1 }); }
+                        if(b.owner.isPlayer) { myFuah += 100; update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah }); }
                         if(t.isPlayer) document.getElementById('class-menu').classList.remove('hidden');
                         else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 5000);
                     }
@@ -233,32 +220,30 @@
 
     function drawUnit(x, y, angle, team, name, hp, cls) {
         ctx.save(); ctx.translate(x, y);
-        ctx.fillStyle = 'black'; ctx.fillRect(-25, -45, 50, 5);
-        ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#fff';
-        ctx.fillRect(-25, -45, (hp/100)*50, 5);
+        ctx.fillStyle = 'black'; ctx.fillRect(-20, -35, 40, 5);
+        ctx.fillStyle = '#2ecc71'; ctx.fillRect(-20, -35, (hp/100)*40, 5);
         ctx.rotate(angle);
         const img = UNIT_IMAGES[team][cls];
         if(img && img.complete) ctx.drawImage(img, -25, -25, 50, 50);
-        else { ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#fff'; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 20, 6); }
+        else { ctx.fillStyle = team === 'caracal' ? '#c19a6b' : '#eee'; ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(10, -3, 20, 6); }
         ctx.restore();
     }
 
     function updateScoreboard() {
         const list = document.getElementById('sb-content');
-        let html = "<h3>BATTLE REPORT</h3>";
-        [...Object.values(remotePlayers), ...bots].forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
+        let html = ""; [...Object.values(remotePlayers), ...bots].forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
         list.innerHTML = html;
     }
 
     window.setPlayerClass = (c) => { currentClass = c; renderWeaponGrid(); };
     window.renderWeaponGrid = () => {
         const grid = document.getElementById('weapon-grid'); grid.innerHTML = '';
-        document.getElementById('fuah-menu-display').innerText = `YOUR FUAH: ${myFuah}`;
+        document.getElementById('fuah-menu-display').innerText = `FUAH: ${myFuah}`;
         Object.keys(GLOBAL_WEAPONS).filter(k => GLOBAL_WEAPONS[k].class === currentClass).forEach(key => {
             const w = GLOBAL_WEAPONS[key];
             const div = document.createElement('div'); div.className = `weapon-item ${selWeaponKey === key ? 'selected' : ''}`;
-            div.innerHTML = `<span class="price-tag">${w.price} FUAH</span><b>${w.name}</b>`;
-            div.onclick = () => { if(myFuah >= w.price) { selWeaponKey = key; renderWeaponGrid(); } else alert("Not enough FUAH!"); };
+            div.innerHTML = `<span class="price-tag">${w.price} F</span><b>${w.name}</b>`;
+            div.onclick = () => { if(myFuah >= w.price) { selWeaponKey = key; renderWeaponGrid(); } else alert("No FUAH!"); };
             grid.appendChild(div);
         });
     };
@@ -266,10 +251,12 @@
     let players = [];
     window.pickTeam = (t) => { myTeam = t; initRoom(); document.getElementById('team-menu').classList.add('hidden'); document.getElementById('class-menu').classList.remove('hidden'); if(!gameStarted) { players.push(new Entity(myTeam, true)); for(let i=0; i<6; i++) { let b=new Entity(i<3?'caracal':'sheep'); b.spawn('MP-40'); bots.push(b); } gameStarted = true; requestAnimationFrame(gameLoop); } };
     window.deploy = () => { const w = GLOBAL_WEAPONS[selWeaponKey]; myFuah -= w.price; update(ref(db, `matches/${currentRoom}/players/${playerId}`), { fuah: myFuah }); players[0].spawn(selWeaponKey); document.getElementById('class-menu').classList.add('hidden'); };
-    window.addEventListener('keydown', e => { keys[e.code] = true; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'flex'; });
-    window.addEventListener('keyup', e => { keys[e.code] = false; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; });
-    window.addEventListener('mousedown', () => isMouseDown = true); window.addEventListener('mouseup', () => isMouseDown = false);
-    window.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
+
+    window.onkeydown = (e) => { keys[e.code] = true; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'flex'; };
+    window.onkeyup = (e) => { keys[e.code] = false; if(e.code === 'Tab') document.getElementById('scoreboard-overlay').style.display = 'none'; };
+    window.onmousedown = () => isMouseDown = true;
+    window.onmouseup = () => isMouseDown = false;
+    window.onmousemove = (e) => { mouseX = e.clientX; mouseY = e.clientY; };
 </script>
 </body>
 </html>
