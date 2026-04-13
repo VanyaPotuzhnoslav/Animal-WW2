@@ -115,7 +115,13 @@
     let myFuah = 0, cameraX = 0, cameraY = 0;
     let unlockedWeapons = ['MP-40']; 
     let remotePlayers = {};
-    const UNIT_IMAGES = { caracal: {}, sheep: {} };
+    const UNIT_IMAGES = { caracal: {}, sheep: {} };const MAP_IMAGES = {
+    grass: new Image(),
+    trench: new Image()
+};
+// Set your URLs here
+MAP_IMAGES.grass.src = 'https://i.pinimg.com/736x/02/4b/1c/024b1c934760aa858cdc4366c2744621.jpg'; 
+MAP_IMAGES.trench.src = 'https://img.freepik.com/free-photo/old-concrete-wall-background_23-2148377222.jpg?semt=ais_hybrid&w=740&q=80';
     let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 1.8, spread: 0.12, hpBonus: 0 } };
     let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
@@ -240,43 +246,102 @@
         reload() { if(!this.isReloading && this.ammo < this.weapon.magSize) { this.isReloading = true; if(this.isPlayer) document.getElementById('reload-msg').style.display='block'; setTimeout(() => { this.ammo = this.weapon.magSize; this.isReloading = false; if(this.isPlayer) document.getElementById('reload-msg').style.display='none'; }, 2000); } }
     }
 
-    function gameLoop() {
-        ctx.fillStyle = '#3d4d2d'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-        const p = players[0];
-        if(p && !p.isDead) { 
-            cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, p.x - canvas.width/2));
-            cameraY = Math.max(0, Math.min(WORLD_HEIGHT - canvas.height, p.y - canvas.height/2));
-            document.getElementById('ammo-display').innerText = `${p.ammo} / ${p.weapon.magSize}`;
-            document.getElementById('fuah-display').innerText = `FUAH: ${myFuah}`;
-        }
-        ctx.save(); ctx.translate(-cameraX, -cameraY);
-        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
-        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.maxHp, ent.class); } });
-        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp, rp.class); } });
-        bullets = bullets.filter(b => {
-            b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
-            let hit = false;
-            [...players, ...bots].forEach(t => {
-                if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
-                    t.hp -= b.damage; hit = true;
-                    if(t.hp <= 0) { 
-                        t.isDead = true; 
-                        if(b.owner.isPlayer) { 
-                            update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
-                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId].kills || 0) + 1 }); 
-                        }
-                        if(t.isPlayer) {
-                             document.getElementById('class-menu').classList.remove('hidden');
-                             update(ref(db, `matches/${currentRoom}/players/${playerId}`), { deaths: (remotePlayers[playerId].deaths || 0) + 1 });
-                        }
-                        else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 4000);
-                    }
-                }
-            });
-            return !hit && b.x > 0 && b.x < WORLD_WIDTH && b.y > 0 && b.y < WORLD_HEIGHT;
-        });
-        ctx.restore(); requestAnimationFrame(gameLoop);
+// --- ADD THESE AT THE TOP OF YOUR SCRIPT NEAR YOUR OTHER VARIABLES ---
+const MAP_IMAGES = {
+    grass: new Image(),
+    trench: new Image()
+};
+// Paste your links here:
+MAP_IMAGES.grass.src = 'https://path-to-your-grass-image.jpg'; 
+MAP_IMAGES.trench.src = 'https://path-to-your-trench-image.png';
+// --------------------------------------------------------------------
+
+function gameLoop() {
+    // 1. Draw Background (Grass)
+    if (MAP_IMAGES.grass.complete) {
+        // We create a pattern so the grass tiles seamlessly
+        const pattern = ctx.createPattern(MAP_IMAGES.grass, 'repeat');
+        ctx.fillStyle = pattern;
+        
+        // We must translate the pattern so it moves with the camera
+        ctx.save();
+        ctx.translate(-cameraX, -cameraY);
+        ctx.fillRect(cameraX, cameraY, canvas.width, canvas.height);
+        ctx.restore();
+    } else {
+        ctx.fillStyle = '#3d4d2d'; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
+
+    const p = players[0];
+    if(p && !p.isDead) { 
+        cameraX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, p.x - canvas.width/2));
+        cameraY = Math.max(0, Math.min(WORLD_HEIGHT - canvas.height, p.y - canvas.height/2));
+        document.getElementById('ammo-display').innerText = `${p.ammo} / ${p.weapon.magSize}`;
+        document.getElementById('fuah-display').innerText = `FUAH: ${myFuah}`;
+    }
+
+    ctx.save(); 
+    ctx.translate(-cameraX, -cameraY);
+
+    // 2. Draw Trenches
+    if (MAP_IMAGES.trench.complete) {
+        // Left Trench
+        ctx.drawImage(MAP_IMAGES.trench, 1500, 0, 150, WORLD_HEIGHT);
+        // Right Trench
+        ctx.drawImage(MAP_IMAGES.trench, 3350, 0, 150, WORLD_HEIGHT);
+    } else {
+        ctx.fillStyle = '#4b3b2f'; 
+        ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); 
+        ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
+    }
+
+    // 3. Draw Players and Bots
+    [...players, ...bots].forEach(ent => { 
+        if(!ent.isDead) { 
+            ent.update(); 
+            drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.maxHp, ent.class); 
+        } 
+    });
+
+    // 4. Draw Remote Players
+    Object.keys(remotePlayers).forEach(id => { 
+        if(id !== playerId && remotePlayers[id].isOnline) { 
+            const rp = remotePlayers[id]; 
+            drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp, rp.class); 
+        } 
+    });
+
+    // 5. Update and Draw Bullets
+    bullets = bullets.filter(b => {
+        b.x += b.vx; b.y += b.vy; 
+        ctx.fillStyle = 'yellow'; 
+        ctx.fillRect(b.x, b.y, 4, 4);
+        
+        let hit = false;
+        [...players, ...bots].forEach(t => {
+            if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
+                t.hp -= b.damage; hit = true;
+                if(t.hp <= 0) { 
+                    t.isDead = true; 
+                    if(b.owner.isPlayer) { 
+                        update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
+                        update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId].kills || 0) + 1 }); 
+                    }
+                    if(t.isPlayer) {
+                         document.getElementById('class-menu').classList.remove('hidden');
+                         update(ref(db, `matches/${currentRoom}/players/${playerId}`), { deaths: (remotePlayers[playerId].deaths || 0) + 1 });
+                    }
+                    else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 4000);
+                }
+            }
+        });
+        return !hit && b.x > 0 && b.x < WORLD_WIDTH && b.y > 0 && b.y < WORLD_HEIGHT;
+    });
+
+    ctx.restore(); 
+    requestAnimationFrame(gameLoop);
+}
 
     function drawUnit(x, y, angle, team, name, hp, maxHp, cls) {
         ctx.save(); ctx.translate(x, y);
