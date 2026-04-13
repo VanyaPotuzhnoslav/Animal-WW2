@@ -249,40 +249,22 @@
             document.getElementById('ammo-display').innerText = `${p.ammo} / ${p.weapon.magSize}`;
             document.getElementById('fuah-display').innerText = `FUAH: ${myFuah}`;
         }
-// ... inside bullets.filter loop ...
-[...players, ...bots].forEach(t => {
-    // Check if the target is an entity in your local arrays (Players or Bots)
-    if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y) < 30) {
-        t.hp -= b.damage;
-        hit = true;
-        // Logic for killing bots/yourself stays here...
-    }
-});
-
-// NEW: Check for hits on REMOTE PLAYERS
-Object.keys(remotePlayers).forEach(id => {
-    const rp = remotePlayers[id];
-    // Don't hit yourself, only hit online enemies
-    if (id !== playerId && rp.isOnline && rp.team !== b.team && !rp.isDead) {
-        if (Math.hypot(b.x - rp.x, b.y - rp.y) < 30) {
-            hit = true;
-            let newHp = (rp.hp || 100) - b.damage;
-            
-            // 1. Update the remote player's HP in the Match Room
-            update(ref(db, `matches/${currentRoom}/players/${id}`), { 
-                hp: Math.max(0, newHp) 
-            });
-
-            // 2. If you killed them, reward yourself with FUAH
-            if (newHp <= 0) {
-                update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
-                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { 
-                    kills: (remotePlayers[playerId].kills || 0) + 1 
-                });
-            }
-        }
-    }
-});
+        ctx.save(); ctx.translate(-cameraX, -cameraY);
+        ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
+        [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.maxHp, ent.class); } });
+        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp, rp.class); } });
+        bullets = bullets.filter(b => {
+            b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
+            let hit = false;
+            [...players, ...bots].forEach(t => {
+                if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
+                    t.hp -= b.damage; hit = true;
+                    if(t.hp <= 0) { 
+                        t.isDead = true; 
+                        if(b.owner.isPlayer) { 
+                            update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
+                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId].kills || 0) + 1 }); 
+                        }
                         if(t.isPlayer) {
                              document.getElementById('class-menu').classList.remove('hidden');
                              update(ref(db, `matches/${currentRoom}/players/${playerId}`), { deaths: (remotePlayers[playerId].deaths || 0) + 1 });
