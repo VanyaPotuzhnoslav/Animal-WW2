@@ -1,3 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Animal WW2: Persistent Front</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; font-family: 'Segoe UI', sans-serif; color: white; }
+        canvas { display: block; background: #3d4d2d; cursor: crosshair; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 200; }
+        .hidden { display: none !important; }
+        #hud { position: absolute; bottom: 20px; right: 20px; text-align: right; pointer-events: none; z-index: 10; }
+        #ammo-display { font-size: 2.5em; font-weight: bold; color: #ff9d00; }
+        #fuah-display { font-size: 1.5em; color: #2ecc71; font-weight: bold; }
+        #admin-overlay { background: rgba(10, 10, 10, 0.98); z-index: 1000; overflow-y: auto; padding: 20px; }
+        .admin-box { background: #222; padding: 15px; border: 1px solid #ff3333; margin: 10px; border-radius: 5px; }
+        input, select { width: 100%; background: #000; color: #fff; border: 1px solid #444; padding: 8px; margin-top: 5px; box-sizing: border-box; }
+        .weapon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 600px; pointer-events: auto; }
+        .weapon-item { background: rgba(255,255,255,0.05); padding: 12px; border: 1px solid #444; cursor: pointer; position: relative; }
+        .weapon-item.selected { border-color: #ff9d00; background: rgba(255,157,0,0.2); }
+        .price-tag { position: absolute; top: 5px; right: 5px; color: #2ecc71; font-size: 0.8em; }
+        #scoreboard-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 500; pointer-events: none; }
+        #scoreboard { background: #1a1a1a; padding: 20px; border: 2px solid #555; pointer-events: auto; }
+        .admin-trigger { position: fixed; bottom: 10px; left: 10px; opacity: 0.1; color: white; background: none; border: none; cursor: pointer; z-index: 1001; }
+    </style>
+</head>
+<body>
+
+    <div id="team-menu" class="overlay">
+        <h1>ANIMAL WW2</h1>
+        <div style="display:flex; flex-direction:column; gap:10px; width:250px;">
+            <input type="text" id="room-code" placeholder="ROOM CODE (e.g. ALPHA)" style="text-align: center;">
+            <input type="text" id="player-nick" placeholder="NICKNAME" style="text-align: center;">
+        </div>
+        <p style="font-size: 0.8em; color: #2ecc71; margin: 15px 0;">Stats are now GLOBAL for your Nickname!</p>
+        <div style="display:flex; gap:20px;">
+            <button onclick="pickTeam('caracal')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">CARACALS</button>
+            <button onclick="pickTeam('sheep')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">SHEEP</button>
+        </div>
+    </div>
+
+    <div id="class-menu" class="overlay hidden">
+        <h2 style="color:#ff9d00">SELECT LOADOUT</h2>
+        <div id="fuah-menu-display" style="color:#2ecc71; font-weight:bold; margin-bottom:10px;">FUAH: 0</div>
+        <div style="margin-bottom:15px; display:flex; gap:10px;">
+            <button onclick="setPlayerClass('Assault')">Assault</button>
+            <button onclick="setPlayerClass('Medic')">Medic</button>
+            <button onclick="setPlayerClass('Support')">Support</button>
+            <button onclick="setPlayerClass('Sniper')">Sniper</button>
+            <button onclick="setPlayerClass('Tank')" style="background: #556b2f; color: white;">Tank</button>
+        </div>
+        <div id="weapon-grid" class="weapon-grid"></div>
+        <button onclick="deploy()" style="padding:15px 100px; background:#ff9d00; border:none; font-weight:bold; cursor:pointer; margin-top: 20px;">DEPLOY</button>
+    </div>
+
+    <div id="admin-overlay" class="overlay hidden">
+        <div style="width: 90%; max-width: 800px;">
+            <div class="admin-box">
+                <h3>GLOBAL CREATOR</h3>
+                <label>Name</label><input id="adm-w-name" type="text" placeholder="Name">
+                <label>Class</label>
+                <select id="adm-w-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option><option>Tank</option></select>
+                <label>Price</label><input id="adm-w-price" type="number" value="500">
+                <label>Damage</label><input id="adm-w-dmg" type="number" value="25">
+                <label>Accuracy Spread</label><input id="adm-w-spread" type="number" step="0.01" value="0.1">
+                <label>Fire Rate (ms)</label><input id="adm-w-rate" type="number" value="200">
+                <label>Magazine Size</label><input id="adm-w-mag" type="number" value="30">
+                <label>HP Bonus (Tanks only)</label><input id="adm-w-hp" type="number" value="0">
+                <label>Speed Modifier (e.g. 0.8 or 2.0)</label><input id="adm-w-speed" type="number" step="0.1" value="1.8">
+                <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD ITEM</button>
+            </div>
+            <div class="admin-box">
+                <h3>VISUALS</h3>
+                <select id="adm-v-team"><option value="caracal">Caracal</option><option value="sheep">Sheep</option></select>
+                <select id="adm-v-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option><option>Tank</option></select>
+                <input id="adm-v-url" type="text" placeholder="Image URL">
+                <button onclick="updateAdminVisual()" style="width:100%; padding:10px; margin-top:10px; background:#444; color:white; border:none; cursor:pointer;">UPDATE IMAGE</button>
+            </div>
+            <button onclick="closeAdmin()" style="width:100%; padding:10px; background:white; color:black; border:none; cursor:pointer;">EXIT ADMIN</button>
+        </div>
+    </div>
+
+    <div id="scoreboard-overlay"><div id="scoreboard"><h3>BATTLEFIELD STATS</h3><div id="sb-content"></div></div></div>
+
+    <div id="hud">
+        <div id="fuah-display">FUAH: 0</div>
+        <div id="reload-msg" style="color:#ff3333; font-weight:bold; display:none;">RELOADING...</div>
+        <div id="ammo-display">-- / --</div>
+    </div>
+
+    <button class="admin-trigger" onclick="authAdmin()">[ADMIN]</button>
+    <canvas id="gameCanvas"></canvas>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getDatabase, ref, set, onValue, onDisconnect, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
@@ -19,19 +110,19 @@
     const ctx = canvas.getContext('2d');
     const WORLD_WIDTH = 5000, WORLD_HEIGHT = 2000;
     
-    // IMAGE CONFIG
+    // --- MAP IMAGES CONFIG ---
     const MAP_IMAGES = { grass: new Image(), trench: new Image() };
-    MAP_IMAGES.grass.src = ''; // Add your URL here
-    MAP_IMAGES.trench.src = ''; // Add your URL here
-    const UNIT_IMAGES = { caracal: {}, sheep: {} };
-
+    MAP_IMAGES.grass.src = ''; // Paste Grass Image URL here
+    MAP_IMAGES.trench.src = ''; // Paste Trench Image URL here
+    
     let myTeam, currentClass = 'Assault', selWeaponKey = 'MP-40', gameStarted = false;
     let playerId = "", currentRoom = "GLOBAL";
     let myFuah = 0, cameraX = 0, cameraY = 0;
     let unlockedWeapons = ['MP-40']; 
     let remotePlayers = {};
+    const UNIT_IMAGES = { caracal: {}, sheep: {} };
     let GLOBAL_WEAPONS = { 'MP-40': { name: 'MP-40', class: 'Assault', damage: 20, fireRate: 180, magSize: 32, price: 0, speed: 1.8, spread: 0.12, hpBonus: 0 } };
-    let players = [], bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
+    let bots = [], bullets = [], keys = {}, isMouseDown = false, mouseX = 0, mouseY = 0;
 
     canvas.width = window.innerWidth; canvas.height = window.innerHeight;
 
@@ -52,7 +143,7 @@
         }
 
         const matchRef = ref(db, `matches/${currentRoom}/players/${playerId}`);
-        await update(matchRef, { name: playerId, team: myTeam, x: 0, y: 0, angle: 0, hp: 100, kills: 0, isOnline: true });
+        await update(matchRef, { name: playerId, team: myTeam, x: 0, y: 0, angle: 0, hp: 100, maxHp: 100, kills: 0, isOnline: true });
         onDisconnect(matchRef).update({ isOnline: false });
         
         onValue(globalUserRef, snap => {
@@ -63,8 +154,13 @@
             }
         });
 
-        onValue(ref(db, `matches/${currentRoom}/players`), snap => { remotePlayers = snap.val() || {}; updateScoreboard(); });
+        onValue(ref(db, `matches/${currentRoom}/players`), snap => { 
+            remotePlayers = snap.val() || {}; 
+            updateScoreboard(); 
+        });
+        
         onValue(ref(db, `global_armory`), snap => { if(snap.val()) { GLOBAL_WEAPONS = {...GLOBAL_WEAPONS, ...snap.val()}; renderWeaponGrid(); } });
+
         onValue(ref(db, `matches/${currentRoom}/visuals`), snap => {
             const data = snap.val();
             if(data) Object.keys(data).forEach(t => Object.keys(data[t]).forEach(c => { const i = new Image(); i.src = data[t][c]; UNIT_IMAGES[t][c] = i; }));
@@ -149,7 +245,7 @@
     }
 
     function gameLoop() {
-        // Background
+        // 1. BACKGROUND (Grass)
         if (MAP_IMAGES.grass.complete && MAP_IMAGES.grass.width > 0) {
             const pattern = ctx.createPattern(MAP_IMAGES.grass, 'repeat');
             ctx.fillStyle = pattern;
@@ -158,7 +254,8 @@
             ctx.fillRect(cameraX, cameraY, canvas.width, canvas.height);
             ctx.restore();
         } else {
-            ctx.fillStyle = '#3d4d2d'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#3d4d2d'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
 
         const p = players[0];
@@ -170,21 +267,29 @@
         }
 
         ctx.save(); ctx.translate(-cameraX, -cameraY);
-        
-        // Trenches
+
+        // 2. TRENCHES
         if (MAP_IMAGES.trench.complete && MAP_IMAGES.trench.width > 0) {
             ctx.drawImage(MAP_IMAGES.trench, 1500, 0, 150, WORLD_HEIGHT);
             ctx.drawImage(MAP_IMAGES.trench, 3350, 0, 150, WORLD_HEIGHT);
         } else {
-            ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
+            ctx.fillStyle = '#4b3b2f'; 
+            ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); 
+            ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
         }
 
+        // 3. UNITS (Local & Bots)
         [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.maxHp, ent.class); } });
-        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp || 100, rp.class); } });
         
+        // 4. REMOTE PLAYERS
+        Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp, rp.class); } });
+        
+        // 5. BULLETS & DAMAGE
         bullets = bullets.filter(b => {
             b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
             let hit = false;
+            
+            // Check Local/Bots
             [...players, ...bots].forEach(t => {
                 if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
                     t.hp -= b.damage; hit = true;
@@ -200,24 +305,27 @@
                 }
             });
 
+            // Check Remote Players (Online Damage Fix)
             if(!hit && b.owner.isPlayer) {
                 Object.keys(remotePlayers).forEach(id => {
                     const rp = remotePlayers[id];
                     if(id !== playerId && rp.isOnline && rp.team !== b.team && Math.hypot(b.x - rp.x, b.y - rp.y) < 30) {
-                        hit = true;
                         let newHp = (rp.hp || 100) - b.damage;
+                        hit = true;
+                        const targetRef = ref(db, `matches/${currentRoom}/players/${id}`);
                         if(newHp <= 0) {
-                            update(ref(db, `matches/${currentRoom}/players/${id}`), { hp: 0 });
+                            update(targetRef, { hp: 0 }); 
                             update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
                             update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId]?.kills || 0) + 1 });
                         } else {
-                            update(ref(db, `matches/${currentRoom}/players/${id}`), { hp: newHp });
+                            update(targetRef, { hp: newHp });
                         }
                     }
                 });
             }
             return !hit && b.x > 0 && b.x < WORLD_WIDTH && b.y > 0 && b.y < WORLD_HEIGHT;
         });
+
         ctx.restore(); requestAnimationFrame(gameLoop);
     }
 
@@ -227,7 +335,7 @@
         ctx.fillStyle = '#2ecc71'; ctx.fillRect(-20, -35, (hp/maxHp)*40, 5);
         ctx.rotate(angle);
         const img = UNIT_IMAGES[team][cls];
-        if(img && img.complete && img.width > 0) {
+        if(img && img.complete) {
             let size = (cls === 'Tank') ? 80 : 50;
             ctx.drawImage(img, -size/2, -size/2, size, size);
         } else {
@@ -240,7 +348,7 @@
 
     function updateScoreboard() {
         const list = document.getElementById('sb-content');
-        let html = ""; Object.values(remotePlayers).filter(p=>p.isOnline).forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
+        let html = ""; [...Object.values(remotePlayers)].filter(p=>p.isOnline).forEach(p => html += `<div>${p.name}: ${p.kills||0} Kills</div>`);
         list.innerHTML = html;
     }
 
@@ -258,6 +366,7 @@
         });
     };
 
+    let players = [];
     window.pickTeam = (t) => { 
         myTeam = t; 
         initRoom().then(() => {
@@ -288,3 +397,5 @@
     window.onmouseup = () => isMouseDown = false;
     window.onmousemove = (e) => { mouseX = e.clientX; mouseY = e.clientY; };
 </script>
+</body>
+</html>
