@@ -30,7 +30,6 @@
             <input type="text" id="room-code" placeholder="ROOM CODE (e.g. ALPHA)" style="text-align: center;">
             <input type="text" id="player-nick" placeholder="NICKNAME" style="text-align: center;">
         </div>
-        <p style="font-size: 0.8em; color: #2ecc71; margin: 15px 0;">Stats are now GLOBAL for your Nickname!</p>
         <div style="display:flex; gap:20px;">
             <button onclick="pickTeam('caracal')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">CARACALS</button>
             <button onclick="pickTeam('sheep')" style="padding:20px 40px; font-weight:bold; cursor:pointer;">SHEEP</button>
@@ -67,13 +66,6 @@
                 <label>Speed Modifier (e.g. 0.8 or 2.0)</label><input id="adm-w-speed" type="number" step="0.1" value="1.8">
                 <button onclick="addAdminWeapon()" style="width:100%; padding:10px; margin-top:10px; background:#ff3333; color:white; border:none; cursor:pointer;">ADD ITEM</button>
             </div>
-            <div class="admin-box">
-                <h3>VISUALS</h3>
-                <select id="adm-v-team"><option value="caracal">Caracal</option><option value="sheep">Sheep</option></select>
-                <select id="adm-v-class"><option>Assault</option><option>Medic</option><option>Support</option><option>Sniper</option><option>Tank</option></select>
-                <input id="adm-v-url" type="text" placeholder="Image URL">
-                <button onclick="updateAdminVisual()" style="width:100%; padding:10px; margin-top:10px; background:#444; color:white; border:none; cursor:pointer;">UPDATE IMAGE</button>
-            </div>
             <button onclick="closeAdmin()" style="width:100%; padding:10px; background:white; color:black; border:none; cursor:pointer;">EXIT ADMIN</button>
         </div>
     </div>
@@ -91,7 +83,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, onDisconnect, update, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+    import { getDatabase, ref, set, onValue, onDisconnect, update, get, push, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAHNCCE16nqhUPAxr5l7I__bJUBg0Z6tLk",
@@ -153,14 +145,28 @@
             }
         });
 
+        // DAMAGE LISTENER: Listen for damage from other players
+        onValue(ref(db, `matches/${currentRoom}/players/${playerId}/damageQueue`), snap => {
+            if (snap.exists() && players[0] && !players[0].isDead) {
+                const damages = snap.val();
+                let totalDamage = 0;
+                Object.keys(damages).forEach(k => totalDamage += damages[k].amt);
+                
+                players[0].hp -= totalDamage;
+                // Clear the queue so we don't take damage twice
+                remove(ref(db, `matches/${currentRoom}/players/${playerId}/damageQueue`));
+
+                if (players[0].hp <= 0) {
+                    players[0].hp = 0;
+                    players[0].isDead = true;
+                    update(matchRef, { hp: 0, deaths: (remotePlayers[playerId]?.deaths || 0) + 1 });
+                    document.getElementById('class-menu').classList.remove('hidden');
+                }
+            }
+        });
+
         onValue(ref(db, `matches/${currentRoom}/players`), snap => { 
             remotePlayers = snap.val() || {}; 
-            // FIXED: If the database says I am dead, kill my local entity
-            if(remotePlayers[playerId] && remotePlayers[playerId].hp <= 0 && players[0] && !players[0].isDead) {
-                players[0].hp = 0;
-                players[0].isDead = true;
-                document.getElementById('class-menu').classList.remove('hidden');
-            }
             updateScoreboard(); 
         });
         
@@ -190,8 +196,6 @@
         update(ref(db, `global_armory`), { [w.name]: w });
     };
 
-    window.updateAdminVisual = () => { update(ref(db, `matches/${currentRoom}/visuals/${document.getElementById('adm-v-team').value}`), { [document.getElementById('adm-v-class').value]: document.getElementById('adm-v-url').value }); };
-
     class Entity {
         constructor(team, isPlayer = false) { 
             this.team = team; this.isPlayer = isPlayer; this.isDead = true; 
@@ -207,6 +211,7 @@
             this.ammo = this.weapon.magSize;
             this.class = this.weapon.class;
             this.isDead = false; this.isReloading = false;
+            if(this.isPlayer) update(ref(db, `matches/${currentRoom}/players/${playerId}`), { hp: this.hp, maxHp: this.maxHp });
         }
         update() {
             if (this.isDead) return;
@@ -219,16 +224,7 @@
                 if (keys['KeyR']) this.reload();
                 this.angle = Math.atan2(mouseY - canvas.height/2, mouseX - canvas.width/2);
                 if (isMouseDown) this.shoot();
-                // FIXED: Don't update HP to database if it's already lower in the database
-                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { 
-                    x: Math.round(this.x), 
-                    y: Math.round(this.y), 
-                    angle: this.angle, 
-                    hp: this.hp, 
-                    maxHp: this.maxHp, 
-                    class: this.class, 
-                    isOnline: true 
-                });
+                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.hp, maxHp: this.maxHp, class: this.class, isOnline: true });
             } else {
                 if (Date.now() > this.moveTimer) {
                     this.targetX = 1500 + Math.random() * 2000;
@@ -297,6 +293,7 @@
             b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
             let hit = false;
             
+            // Hit bots or local player
             [...players, ...bots].forEach(t => {
                 if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
                     t.hp -= b.damage; hit = true;
@@ -306,28 +303,25 @@
                             update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
                             update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId]?.kills || 0) + 1 }); 
                         }
-                        if(t.isPlayer) {
-                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { hp: 0 }); // Ensure DB knows we died
-                            document.getElementById('class-menu').classList.remove('hidden');
-                        }
+                        if(t.isPlayer) document.getElementById('class-menu').classList.remove('hidden');
                         else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 4000);
                     }
                 }
             });
 
+            // HIT ONLINE PLAYERS (Queue damage instead of setting HP)
             if(!hit && b.owner.isPlayer) {
                 Object.keys(remotePlayers).forEach(id => {
                     const rp = remotePlayers[id];
                     if(id !== playerId && rp.isOnline && rp.team !== b.team && Math.hypot(b.x - rp.x, b.y - rp.y) < 30) {
-                        let newHp = Math.max(0, (rp.hp || 100) - b.damage);
                         hit = true;
-                        const targetRef = ref(db, `matches/${currentRoom}/players/${id}`);
-                        if(newHp <= 0) {
-                            update(targetRef, { hp: 0 }); 
-                            update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
-                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId]?.kills || 0) + 1 });
-                        } else {
-                            update(targetRef, { hp: newHp });
+                        // Tell their computer they took damage
+                        push(ref(db, `matches/${currentRoom}/players/${id}/damageQueue`), { amt: b.damage, from: playerId });
+                        
+                        // Predict death for FUAH/Kills
+                        if((rp.hp || 100) - b.damage <= 0) {
+                           update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
+                           update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId]?.kills || 0) + 1 });
                         }
                     }
                 });
