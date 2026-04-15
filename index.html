@@ -155,13 +155,11 @@
 
         onValue(ref(db, `matches/${currentRoom}/players`), snap => { 
             remotePlayers = snap.val() || {}; 
-            // Update local player HP if someone hit us in DB
-            if(players[0] && remotePlayers[playerId]) {
-                players[0].hp = remotePlayers[playerId].hp;
-                if(players[0].hp <= 0 && !players[0].isDead) {
-                    players[0].isDead = true;
-                    document.getElementById('class-menu').classList.remove('hidden');
-                }
+            // FIXED: If the database says I am dead, kill my local entity
+            if(remotePlayers[playerId] && remotePlayers[playerId].hp <= 0 && players[0] && !players[0].isDead) {
+                players[0].hp = 0;
+                players[0].isDead = true;
+                document.getElementById('class-menu').classList.remove('hidden');
             }
             updateScoreboard(); 
         });
@@ -209,7 +207,6 @@
             this.ammo = this.weapon.magSize;
             this.class = this.weapon.class;
             this.isDead = false; this.isReloading = false;
-            if(this.isPlayer) update(ref(db, `matches/${currentRoom}/players/${playerId}`), { hp: this.hp, maxHp: this.maxHp });
         }
         update() {
             if (this.isDead) return;
@@ -222,7 +219,16 @@
                 if (keys['KeyR']) this.reload();
                 this.angle = Math.atan2(mouseY - canvas.height/2, mouseX - canvas.width/2);
                 if (isMouseDown) this.shoot();
-                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { x: Math.round(this.x), y: Math.round(this.y), angle: this.angle, hp: this.hp, maxHp: this.maxHp, class: this.class, isOnline: true });
+                // FIXED: Don't update HP to database if it's already lower in the database
+                update(ref(db, `matches/${currentRoom}/players/${playerId}`), { 
+                    x: Math.round(this.x), 
+                    y: Math.round(this.y), 
+                    angle: this.angle, 
+                    hp: this.hp, 
+                    maxHp: this.maxHp, 
+                    class: this.class, 
+                    isOnline: true 
+                });
             } else {
                 if (Date.now() > this.moveTimer) {
                     this.targetX = 1500 + Math.random() * 2000;
@@ -232,7 +238,7 @@
                 let dx = this.targetX - this.x; let dy = this.targetY - this.y;
                 let dist = Math.hypot(dx, dy);
                 if(dist > 10) { this.x += (dx/dist)*s*0.6; this.y += (dy/dist)*s*0.6; }
-                let targets = [...players, ...Object.values(remotePlayers)].filter(t => !t.isDead && t.team !== this.team && Math.hypot((t.x||0)-this.x, (t.y||0)-this.y) < 600);
+                let targets = [...players, ...Object.values(remotePlayers)].filter(t => !t.isDead && t.team !== this.team && Math.hypot(t.x-this.x, t.y-this.y) < 600);
                 if(targets.length > 0) {
                     this.angle = Math.atan2(targets[0].y - this.y, targets[0].x - this.x);
                     if(Math.random() < 0.02) this.shoot();
@@ -255,9 +261,15 @@
     function gameLoop() {
         if (MAP_IMAGES.grass.complete && MAP_IMAGES.grass.width > 0) {
             const pattern = ctx.createPattern(MAP_IMAGES.grass, 'repeat');
-            ctx.fillStyle = pattern; ctx.save(); ctx.translate(-cameraX, -cameraY);
-            ctx.fillRect(cameraX, cameraY, canvas.width, canvas.height); ctx.restore();
-        } else { ctx.fillStyle = '#3d4d2d'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            ctx.fillStyle = pattern;
+            ctx.save();
+            ctx.translate(-cameraX, -cameraY);
+            ctx.fillRect(cameraX, cameraY, canvas.width, canvas.height);
+            ctx.restore();
+        } else {
+            ctx.fillStyle = '#3d4d2d'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
 
         const p = players[0];
         if(p && !p.isDead) { 
@@ -268,9 +280,15 @@
         }
 
         ctx.save(); ctx.translate(-cameraX, -cameraY);
+
         if (MAP_IMAGES.trench.complete && MAP_IMAGES.trench.width > 0) {
-            ctx.drawImage(MAP_IMAGES.trench, 1500, 0, 150, WORLD_HEIGHT); ctx.drawImage(MAP_IMAGES.trench, 3350, 0, 150, WORLD_HEIGHT);
-        } else { ctx.fillStyle = '#4b3b2f'; ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); ctx.fillRect(3350, 0, 150, WORLD_HEIGHT); }
+            ctx.drawImage(MAP_IMAGES.trench, 1500, 0, 150, WORLD_HEIGHT);
+            ctx.drawImage(MAP_IMAGES.trench, 3350, 0, 150, WORLD_HEIGHT);
+        } else {
+            ctx.fillStyle = '#4b3b2f'; 
+            ctx.fillRect(1500, 0, 150, WORLD_HEIGHT); 
+            ctx.fillRect(3350, 0, 150, WORLD_HEIGHT);
+        }
 
         [...players, ...bots].forEach(ent => { if(!ent.isDead) { ent.update(); drawUnit(ent.x, ent.y, ent.angle, ent.team, ent.name, ent.hp, ent.maxHp, ent.class); } });
         Object.keys(remotePlayers).forEach(id => { if(id !== playerId && remotePlayers[id].isOnline) { const rp = remotePlayers[id]; drawUnit(rp.x, rp.y, rp.angle, rp.team, rp.name, rp.hp, rp.maxHp, rp.class); } });
@@ -279,30 +297,44 @@
             b.x += b.vx; b.y += b.vy; ctx.fillStyle = 'yellow'; ctx.fillRect(b.x, b.y, 4, 4);
             let hit = false;
             
-            // Local Bots
-            bots.forEach(t => {
+            [...players, ...bots].forEach(t => {
                 if(!t.isDead && t.team !== b.team && Math.hypot(b.x-t.x, b.y-t.y)<30) {
                     t.hp -= b.damage; hit = true;
-                    if(t.hp <= 0) { t.isDead = true; if(b.owner.isPlayer) update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 }); setTimeout(() => t.spawn('MP-40'), 4000); }
+                    if(t.hp <= 0) { 
+                        t.isDead = true; 
+                        if(b.owner.isPlayer) { 
+                            update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
+                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId]?.kills || 0) + 1 }); 
+                        }
+                        if(t.isPlayer) {
+                            update(ref(db, `matches/${currentRoom}/players/${playerId}`), { hp: 0 }); // Ensure DB knows we died
+                            document.getElementById('class-menu').classList.remove('hidden');
+                        }
+                        else if(bots.includes(t)) setTimeout(() => t.spawn('MP-40'), 4000);
+                    }
                 }
             });
 
-            // Remote Players
             if(!hit && b.owner.isPlayer) {
                 Object.keys(remotePlayers).forEach(id => {
                     const rp = remotePlayers[id];
                     if(id !== playerId && rp.isOnline && rp.team !== b.team && Math.hypot(b.x - rp.x, b.y - rp.y) < 30) {
-                        let newHp = (rp.hp || 100) - b.damage; hit = true;
+                        let newHp = Math.max(0, (rp.hp || 100) - b.damage);
+                        hit = true;
                         const targetRef = ref(db, `matches/${currentRoom}/players/${id}`);
                         if(newHp <= 0) {
-                            update(targetRef, { hp: 0 }); update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
+                            update(targetRef, { hp: 0 }); 
+                            update(ref(db, `users/${playerId}`), { fuah: myFuah + 100 });
                             update(ref(db, `matches/${currentRoom}/players/${playerId}`), { kills: (remotePlayers[playerId]?.kills || 0) + 1 });
-                        } else update(targetRef, { hp: newHp });
+                        } else {
+                            update(targetRef, { hp: newHp });
+                        }
                     }
                 });
             }
             return !hit && b.x > 0 && b.x < WORLD_WIDTH && b.y > 0 && b.y < WORLD_HEIGHT;
         });
+
         ctx.restore(); requestAnimationFrame(gameLoop);
     }
 
